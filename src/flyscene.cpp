@@ -6,8 +6,8 @@ void Flyscene::initialize(int width, int height) {
   phong.initialize();
 
   // set the camera's projection matrix
-  flycamera.setPerspectiveMatrix(60.0, width / (float)height, 0.1f, 100.0f);
-  flycamera.setViewport(Eigen::Vector2f((float)width, (float)height));
+  flycamera.setPerspectiveMatrix(60.0, (float) width / (float) height, 0.1f, 100.0f);
+  flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
   // load the OBJ file and materials
   Tucano::MeshImporter::loadObjFile(mesh, materials,
@@ -18,10 +18,8 @@ void Flyscene::initialize(int width, int height) {
   mesh.normalizeModelMatrix();
 
   // pass all the materials to the Phong Shader
-  for (int i = 0; i < materials.size(); ++i)
-    phong.addMaterial(materials[i]);
-
-
+  for (auto & material : materials)
+    phong.addMaterial(material);
 
   // set the color and size of the sphere to represent the light sources
   // same sphere is used for all sources
@@ -29,7 +27,7 @@ void Flyscene::initialize(int width, int height) {
   lightrep.setSize(0.15);
 
   // create a first ray-tracing light source at some random position
-  lights.push_back(Eigen::Vector3f(-1.0, 1.0, 1.0));
+  lights.emplace_back(-1.0, 1.0, 1.0);
 
   // scale the camera representation (frustum) for the ray debug
   camerarep.shapeMatrix()->scale(0.2);
@@ -43,7 +41,7 @@ void Flyscene::initialize(int width, int height) {
   glEnable(GL_DEPTH_TEST);
 
   // for (int i = 0; i<mesh.getNumberOfFaces(); ++i){
-  //   Tucano::Face face = mesh.getFace(i);    
+  //   Tucano::Face face = mesh.getFace(i);
   //   for (int j =0; j<face.vertex_ids.size(); ++j){
   //     std::cout<<"vid "<<j<<" "<<face.vertex_ids[j]<<std::endl;
   //     std::cout<<"vertex "<<mesh.getVertex(face.vertex_ids[j]).transpose()<<std::endl;
@@ -52,12 +50,9 @@ void Flyscene::initialize(int width, int height) {
   //   std::cout<<"mat id "<<face.material_id<<std::endl<<std::endl;
   //   std::cout<<"face   normal "<<face.normal.transpose() << std::endl << std::endl;
   // }
-
-
-
 }
 
-void Flyscene::paintGL(void) {
+void Flyscene::paintGL() {
 
   // update the camera view matrix with the last mouse interactions
   flycamera.updateViewMatrix();
@@ -79,9 +74,9 @@ void Flyscene::paintGL(void) {
   camerarep.render(flycamera, scene_light);
 
   // render ray tracing light sources as yellow spheres
-  for (int i = 0; i < lights.size(); ++i) {
+  for (const auto & light : lights) {
     lightrep.resetModelMatrix();
-    lightrep.modelMatrix()->translate(lights[i]);
+    lightrep.modelMatrix()->translate(light);
     lightrep.render(flycamera, scene_light);
   }
 
@@ -93,18 +88,16 @@ void Flyscene::simulate(GLFWwindow *window) {
   // Update the camera.
   // NOTE(mickvangelderen): GLFW 3.2 has a problem on ubuntu where some key
   // events are repeated: https://github.com/glfw/glfw/issues/747. Sucks.
-  float dx = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ? 1.0 : 0.0) -
-             (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ? 1.0 : 0.0);
-  float dy = (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS ||
-                      glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS
-                  ? 1.0
-                  : 0.0) -
-             (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS ||
-                      glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS
-                  ? 1.0
-                  : 0.0);
-  float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 1.0 : 0.0) -
-             (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 1.0 : 0.0);
+
+  float dx = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ? 1.0f : 0.0f) -
+             (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ? 1.0f : 0.0f);
+
+  float dy = (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS ? 1.0f : 0.0f) -
+             (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS ? 1.0f : 0.0f);
+
+  float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 1.0f : 0.0f) -
+             (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 1.0f : 0.0f);
+
   flycamera.translate(dx, dy, dz);
 }
 
@@ -163,6 +156,9 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin,
                                    Eigen::Vector3f &dest) {
   // just some fake random color per pixel until you implement your ray tracing
   // remember to return your RGB values as floats in the range [0, 1]!!!
-  return Eigen::Vector3f(rand() / (float)RAND_MAX, rand() / (float)RAND_MAX,
-                         rand() / (float)RAND_MAX);
+  return {
+      rand() / (float)RAND_MAX,
+      rand() / (float)RAND_MAX,
+      rand() / (float)RAND_MAX
+  };
 }
