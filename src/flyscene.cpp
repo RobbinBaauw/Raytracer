@@ -1,6 +1,6 @@
 #include "flyscene.hpp"
 #include <GLFW/glfw3.h>
-#include <assert.h>
+#include <cassert>
 
 void Flyscene::initialize(int width, int height) {
     // initiliaze the Phong Shading effect for the Opengl Previewer
@@ -11,8 +11,8 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-    Tucano::MeshImporter::loadObjFile(mesh, materials,
-                                      "resources/models/dodgeColorTest.obj");
+//    Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/dodgeColorTest.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/cube.obj");
 
 
     // normalize the model (scale to unit cube and center at origin)
@@ -143,6 +143,8 @@ void Flyscene::raytraceScene(int width, int height) {
             // create a ray from the camera passing through the pixel (i,j)
             screen_coords = flycamera.screenToWorld(Eigen::Vector2f(i, j));
             // launch raytracing for the given ray and write result to pixel data
+            std::cout << "Ray tracing pixel " + std::to_string(i) + ", " + std::to_string(j) + "! " << std::endl;
+
             pixel_data[i][j] = traceRay(origin, screen_coords);
         }
     }
@@ -157,26 +159,41 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &des
 
     auto nrOfFaces = mesh.getNumberOfFaces();
     for (int i = 0; i < nrOfFaces; i++) {
+//        std::cout << "Ray tracing face " + std::to_string(i) + " of " + std::to_string(nrOfFaces) + "! " << std::endl;
+
+        // Retrieve the current face and its vertex ids
         const auto currFace = mesh.getFace(i);
         const auto currVertexIds = currFace.vertex_ids;
 
         assert(currVertexIds.size() == 3);
 
-        const auto v0 = mesh.getVertex(currVertexIds[0]).head<3>();
-        const auto v1 = mesh.getVertex(currVertexIds[1]).head<3>();
-        const auto v2 = mesh.getVertex(currVertexIds[2]).head<3>();
+        // Create the vertices
+        const auto v0 = mesh.getVertex(currVertexIds[0]).head(3);
+        const auto v1 = mesh.getVertex(currVertexIds[1]).head(3);
+        const auto v2 = mesh.getVertex(currVertexIds[2]).head(3);
 
-        const auto normal = (v0 - v2).cross(v1 - v2).normalized();
+        // Get normal (implemented by Tucano)
+        const auto normal = currFace.normal;
+
+        // Get distance from triangle to origin (see slide 27)
         const auto originDistance = normal.dot(v0);
-        const auto direction = dest - origin;
 
+        // Get direction of ray
+        const auto direction = (dest - origin).normalized();
+
+        // Compute tHit (see slide 10)
         const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
+
+        // Compute hit point (see slide 10)
         const auto hitPoint = origin + tHit * direction;
 
-        Eigen::Matrix3f A;
-        A << v0, v1, v2;
+        // We want to solve p = v2 + a * (v0 - v2) + b * (v1 - v2), see slide 28
+        // This we can do by getting the linear combination for (p - v2), thus giving us a and b
+        // So we solve Ax = b where A exists of (v0 - v2), (v1, v2) and b exists of (p - v2)
+        Eigen::Matrix<float, 3, 2> A;
+        A << (v0 - v2), (v1 - v2);
 
-        const auto linearCombination = A.colPivHouseholderQr().solve(hitPoint);
+        const auto linearCombination = A.colPivHouseholderQr().solve(hitPoint - v2);
         const auto a = linearCombination[0];
         const auto b = linearCombination[1];
 
