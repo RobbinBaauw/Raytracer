@@ -1,5 +1,6 @@
 #include "flyscene.hpp"
 #include <GLFW/glfw3.h>
+#include <assert.h>
 
 void Flyscene::initialize(int width, int height) {
     // initiliaze the Phong Shading effect for the Opengl Previewer
@@ -89,16 +90,14 @@ void Flyscene::simulate(GLFWwindow *window) {
     // NOTE(mickvangelderen): GLFW 3.2 has a problem on ubuntu where some key
     // events are repeated: https://github.com/glfw/glfw/issues/747. Sucks.
 
-    float dx = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ? 1.0f : 0.0f) -
-               (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ? 1.0f : 0.0f);
+    float dx = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ? 0.6f : 0.4f) -
+               (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ? 0.6f : 0.4f);
 
-    float dy = (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS ? 1.0f
-                                                                                                             : 0.0f) -
-               (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS ? 1.0f
-                                                                                                             : 0.0f);
+    float dy = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS ? 0.6f : 0.4f) -
+               (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ? 0.6f : 0.4f);
 
-    float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 1.0f : 0.0f) -
-               (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 1.0f : 0.0f);
+    float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 0.6f : 0.4f) -
+               (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 0.6f : 0.4f);
 
     flycamera.translate(dx, dy, dz);
 }
@@ -154,13 +153,46 @@ void Flyscene::raytraceScene(int width, int height) {
 }
 
 
-Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin,
-                                   Eigen::Vector3f &dest) {
-    // just some fake random color per pixel until you implement your ray tracing
-    // remember to return your RGB values as floats in the range [0, 1]!!!
+Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest) {
+
+    auto nrOfFaces = mesh.getNumberOfFaces();
+    for (int i = 0; i < nrOfFaces; i++) {
+        const auto currFace = mesh.getFace(i);
+        const auto currVertexIds = currFace.vertex_ids;
+
+        assert(currVertexIds.size() == 3);
+
+        const auto v0 = mesh.getVertex(currVertexIds[0]).head<3>();
+        const auto v1 = mesh.getVertex(currVertexIds[1]).head<3>();
+        const auto v2 = mesh.getVertex(currVertexIds[2]).head<3>();
+
+        const auto normal = (v0 - v2).cross(v1 - v2).normalized();
+        const auto originDistance = normal.dot(v0);
+        const auto direction = dest - origin;
+
+        const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
+        const auto hitPoint = origin + tHit * direction;
+
+        Eigen::Matrix3f A;
+        A << v0, v1, v2;
+
+        const auto linearCombination = A.colPivHouseholderQr().solve(hitPoint);
+        const auto a = linearCombination[0];
+        const auto b = linearCombination[1];
+
+        auto noHit = a < 0 || b < 0 || a + b > 1;
+        if (!noHit) {
+            return {
+            0,
+            0,
+            0
+            };
+        }
+    }
+
     return {
-    rand() / (float) RAND_MAX,
-    rand() / (float) RAND_MAX,
-    rand() / (float) RAND_MAX
+    1,
+    1,
+    1
     };
 }
