@@ -187,18 +187,17 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &des
 
     auto nrOfFaces = mesh.getNumberOfFaces();
     for (int i = 0; i < nrOfFaces; i++) {
-//        std::cout << "Ray tracing face " + std::to_string(i) + " of " + std::to_string(nrOfFaces) + "! " << std::endl;
-
         // Retrieve the current face and its vertex ids
         const auto currFace = mesh.getFace(i);
         const auto currVertexIds = currFace.vertex_ids;
+        const auto currMaterial = currFace.material_id;
 
         assert(currVertexIds.size() == 3);
 
         // Create the vertices
-        const auto v0 = mesh.getVertex(currVertexIds[0]).head(3);
-        const auto v1 = mesh.getVertex(currVertexIds[1]).head(3);
-        const auto v2 = mesh.getVertex(currVertexIds[2]).head(3);
+        const auto v0 = (mesh.getShapeMatrix() * mesh.getVertex(currVertexIds[0])).head(3);
+        const auto v1 = (mesh.getShapeMatrix() * mesh.getVertex(currVertexIds[1])).head(3);
+        const auto v2 = (mesh.getShapeMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
 
         // Get normal (implemented by Tucano)
         const auto normal = currFace.normal;
@@ -227,6 +226,8 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &des
 
         auto noHit = a < 0 || b < 0 || a + b > 1;
         if (!noHit) {
+            const auto material = materials[currMaterial];
+
             return {
                     0,
                     0,
