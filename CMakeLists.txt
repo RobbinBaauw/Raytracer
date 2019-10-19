@@ -19,8 +19,6 @@ if (WIN32)
     set(EIGEN3_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/dependencies/eigen/include/")
 endif (WIN32)
 
-find_package(ArrayFire)
-
 # find the necessary libraries (GLEW, OPENGL, EIGEN, GLFW)
 find_package(GLEW REQUIRED)
 if (NOT GLEW_FOUND)
@@ -84,5 +82,4 @@ target_link_libraries(
         ${GLEW_LIBRARIES}
         ${GLFW_LIBRARIES}
         ${OPENGL_LIBRARIES}
-        ArrayFire::af
 )
