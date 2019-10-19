@@ -1,6 +1,7 @@
 #include "flyscene.hpp"
 #include <GLFW/glfw3.h>
 #include <cassert>
+#include <thread>
 
 void Flyscene::initialize(int width, int height) {
     // initiliaze the Phong Shading effect for the Opengl Previewer
@@ -12,7 +13,7 @@ void Flyscene::initialize(int width, int height) {
 
     // load the OBJ file and materials
 //    Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/dodgeColorTest.obj");
-    Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/cube.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube.obj");
 
 
     // normalize the model (scale to unit cube and center at origin)
@@ -129,24 +130,33 @@ void Flyscene::raytraceScene(int width, int height) {
 
     // create 2d vector to hold pixel colors and resize to match image size
     vector<vector<Eigen::Vector3f>> pixel_data;
-    pixel_data.resize(image_size[1]);
-    for (int i = 0; i < image_size[1]; ++i)
+    int ySize = image_size[1];
+    pixel_data.resize(ySize);
+    for (int i = 0; i < ySize; ++i)
         pixel_data[i].resize(image_size[0]);
 
     // origin of the ray is always the camera center
     Eigen::Vector3f origin = flycamera.getCenter();
-    Eigen::Vector3f screen_coords;
 
-    // for every pixel shoot a ray from the origin through the pixel coords
-    for (int j = 0; j < image_size[1]; ++j) {
-        for (int i = 0; i < image_size[0]; ++i) {
-            // create a ray from the camera passing through the pixel (i,j)
-            screen_coords = flycamera.screenToWorld(Eigen::Vector2f(i, j));
-            // launch raytracing for the given ray and write result to pixel data
-            std::cout << "Ray tracing pixel " + std::to_string(i) + ", " + std::to_string(j) + "! " << std::endl;
+    const auto threadCount = thread::hardware_concurrency();
+    const auto ysPerThread = ceil((float) ySize / (float) threadCount); // the amount of y coordinates per thread, ceil. Meaning we start with this number and if it is divisble by the remaining threads we do -1
 
-            pixel_data[i][j] = traceRay(origin, screen_coords);
-        }
+    vector<thread> threads;
+
+    auto startingY = 0;
+    for (int i = 0; i < threadCount; i++) {
+        const auto threadsLeft = threadCount - i;
+        const auto ysToDo = ySize - startingY;
+
+        const auto currentYs = ysToDo % threadsLeft == 0 ? ysToDo / threadsLeft : ysPerThread;
+
+        threads.emplace_back(&Flyscene::traceFromY, this, startingY, currentYs, origin, std::ref(pixel_data), image_size);
+
+        startingY += currentYs;
+    }
+
+    for (int i = 0; i < threadCount; i++) {
+        threads[i].join();
     }
 
     // write the ray tracing result to a PPM image
@@ -154,6 +164,24 @@ void Flyscene::raytraceScene(int width, int height) {
     std::cout << "ray tracing done! " << std::endl;
 }
 
+void Flyscene::traceFromY(int startY, int amountY,
+                          Eigen::Vector3f &origin,
+                          vector<vector<Eigen::Vector3f>> &pixel_data,
+                          Eigen::Vector2i &image_size) {
+
+    // for every pixel shoot a ray from the origin through the pixel coords
+    for (int y = startY; y < startY + amountY; ++y) {
+        for (int x = 0; x < image_size[0]; ++x) {
+            // create a ray from the camera passing through the pixel (i,j)
+            Eigen::Vector3f screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
+
+//            std::cout << "Ray tracing pixel " + std::to_string(x) + ", " + std::to_string(y) + "! " << std::endl;
+
+            // launch raytracing for the given ray and write result to pixel data
+            pixel_data[x][y] = traceRay(origin, screen_coords);
+        }
+    }
+}
 
 Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest) {
 
@@ -200,16 +228,16 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &des
         auto noHit = a < 0 || b < 0 || a + b > 1;
         if (!noHit) {
             return {
-            0,
-            0,
-            0
+                    0,
+                    0,
+                    0
             };
         }
     }
 
     return {
-    1,
-    1,
-    1
+            1,
+            1,
+            1
     };
 }

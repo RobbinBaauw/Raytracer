@@ -19,7 +19,7 @@
 class Flyscene {
 
 public:
-    Flyscene(void) {}
+    Flyscene(void) = default;
 
     /**
      * @brief Initializes the shader effect
@@ -68,6 +68,11 @@ public:
      * @return a RGB color
      */
     Eigen::Vector3f traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest);
+
+    void traceFromY(int startY, int amountY,
+                              Eigen::Vector3f &origin,
+                              vector<vector<Eigen::Vector3f>> &pixel_data,
+                              Eigen::Vector2i &image_size);
 
 private:
     // A simple phong shader for rendering meshes
