@@ -62,17 +62,22 @@ public:
     void raytraceScene(int width = 0, int height = 0);
 
     /**
+    * @Brief function that calculates basic shading of an intersected face
+    */
+    Eigen::Vector3f shadeOffFace(int faceIndex);
+
+    /**
      * @brief trace a single ray from the camera passing through dest
      * @param origin Ray origin
      * @param dest Other point on the ray, usually screen coordinates
      * @return a RGB color
      */
-    Eigen::Vector3f traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest);
+    Eigen::Vector3f traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest, int recursionDepth);
 
     void traceFromY(int startY, int amountY,
-                              Eigen::Vector3f &origin,
-                              vector<vector<Eigen::Vector3f>> &pixel_data,
-                              Eigen::Vector2i &image_size);
+                    Eigen::Vector3f &origin,
+                    vector<vector<Eigen::Vector3f>> &pixel_data,
+                    Eigen::Vector2i &image_size);
 
 private:
     // A simple phong shader for rendering meshes

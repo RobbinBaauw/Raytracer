@@ -164,33 +164,64 @@ void Flyscene::raytraceScene(int width, int height) {
     std::cout << "ray tracing done! " << std::endl;
 }
 
-void Flyscene::traceFromY(int startY, int amountY,
-                          Eigen::Vector3f &origin,
-                          vector<vector<Eigen::Vector3f>> &pixel_data,
-                          Eigen::Vector2i &image_size) {
+Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex) {
+    Tucano::Face face = mesh.getFace(faceIndex);
+    Eigen::Vector3f faceNormal = face.normal.normalized();
+    int materialIndex = face.material_id;
+    Tucano::Material::Mtl material = materials[materialIndex];
 
-    // for every pixel shoot a ray from the origin through the pixel coords
-    for (int y = startY; y < startY + amountY; ++y) {
-        for (int x = 0; x < image_size[0]; ++x) {
-            // create a ray from the camera passing through the pixel (i,j)
-            Eigen::Vector3f screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
+    Eigen::Vector3f color = Eigen::Vector3f(0, 0, 0);
 
-//            std::cout << "Ray tracing pixel " + std::to_string(x) + ", " + std::to_string(y) + "! " << std::endl;
+    //Iterate over all the present lights
+    for (Eigen::Vector3f light : lights) {
 
-            // launch raytracing for the given ray and write result to pixel data
-            pixel_data[x][y] = traceRay(origin, screen_coords);
-        }
+        //Maybe needs converting using lightViewMatrix???
+        light.normalize();
+        Eigen::Vector3f reflectedLight = light - 2.f * light.dot(faceNormal) * faceNormal;
+        reflectedLight.normalize();
+
+        //Compute average location face
+        Eigen::Vector3f avgLoc = ((
+                mesh.getVertex(face.vertex_ids[0]) +
+                mesh.getVertex(face.vertex_ids[1]) +
+                mesh.getVertex(face.vertex_ids[2])
+        ) / 3).head(3);
+
+        //Not sure if this shouldn't be the other way around. It was like this in assignment 5
+        Eigen::Vector3f eyeDirection = avgLoc - flycamera.getCenter();
+        eyeDirection.normalize();
+
+        Eigen::Vector3f lightIntensity = Eigen::Vector3f(0.5, 0.5, 0.5);
+
+        Eigen::Vector3f ambient = lightIntensity.cwiseProduct(material.getAmbient());
+
+        float cos1 = fmaxf(0, light.dot(faceNormal));
+        Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
+
+        float cos2 = fmax(0, reflectedLight.dot(eyeDirection));
+        Eigen::Vector3f specular = lightIntensity.cwiseProduct(material.getSpecular()) * (pow(cos2, material.getShininess()));
+
+        color += ambient + diffuse + specular;
     }
+
+    return color;
 }
 
-Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest) {
+const int MAXRECURSION = 3;
+
+Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest, int recursionDepth) {
+
+    bool hasIntersected = false;
+    float currentMaxDepth = std::numeric_limits<float>::max();
+
+    Eigen::Vector3f currentHitpoint;
+    int currentMaxDepthFaceId = -1;
 
     auto nrOfFaces = mesh.getNumberOfFaces();
     for (int i = 0; i < nrOfFaces; i++) {
         // Retrieve the current face and its vertex ids
         const auto currFace = mesh.getFace(i);
         const auto currVertexIds = currFace.vertex_ids;
-        const auto currMaterial = currFace.material_id;
 
         assert(currVertexIds.size() == 3);
 
@@ -225,20 +256,56 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &des
         const auto b = linearCombination[1];
 
         auto noHit = a < 0 || b < 0 || a + b > 1;
-        if (!noHit) {
-            const auto material = materials[currMaterial];
+        if (!noHit && tHit < currentMaxDepth) {
+            hasIntersected = true;
+            currentMaxDepth = tHit;
 
-            return {
-                    0,
-                    0,
-                    0
-            };
+            currentHitpoint = hitPoint;
+            currentMaxDepthFaceId = i;
         }
     }
 
-    return {
-            1,
-            1,
-            1
-    };
+    if (hasIntersected) {
+        const Eigen::Vector3f localShading = shadeOffFace(currentMaxDepthFaceId);
+
+        if (recursionDepth < MAXRECURSION) {
+            const auto hitFace = mesh.getFace(currentMaxDepthFaceId);
+            const auto normal = hitFace.normal;
+            Eigen::Vector3f reflection = origin - 2 * origin.dot(normal) * normal;
+            const Eigen::Vector3f reflectionShading = traceRay(currentHitpoint, reflection, recursionDepth + 1);
+
+            Eigen::Vector3f refraction = { 0, 0, 0 };
+            const Eigen::Vector3f refractionShading = traceRay(currentHitpoint, refraction, recursionDepth + 1);
+
+            return {
+            localShading.x() + reflectionShading.x() + refractionShading.x(),
+            localShading.y() + reflectionShading.y() + refractionShading.y(),
+            localShading.z() + reflectionShading.z() + refractionShading.z()
+            };
+        } else {
+            return localShading;
+        }
+
+    } else {
+        return {
+        1,
+        1,
+        1
+        };
+    }
+}
+
+void Flyscene::traceFromY(int startY, int amountY, Eigen::Vector3f &origin, vector<vector<Eigen::Vector3f>> &pixel_data,
+                          Eigen::Vector2i &image_size) {
+
+    // for every pixel shoot a ray from the origin through the pixel coords
+    for (int y = startY; y < startY + amountY; ++y) {
+        for (int x = 0; x < image_size[0]; ++x) {
+            // create a ray from the camera passing through the pixel (i,j)
+            Eigen::Vector3f screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
+
+            // launch raytracing for the given ray and write result to pixel data
+            pixel_data[x][y] = traceRay(origin, screen_coords, 0);
+        }
+    }
 }
