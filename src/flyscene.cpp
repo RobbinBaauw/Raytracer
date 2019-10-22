@@ -2,6 +2,9 @@
 #include <GLFW/glfw3.h>
 #include <cassert>
 #include <thread>
+#include <chrono>
+
+#define LOGGING
 
 void Flyscene::initialize(int width, int height) {
     // initiliaze the Phong Shading effect for the Opengl Previewer
@@ -120,7 +123,15 @@ void Flyscene::createDebugRay(const Eigen::Vector2f &mouse_pos) {
 }
 
 void Flyscene::raytraceScene(int width, int height) {
-    std::cout << "ray tracing ..." << std::endl;
+
+#ifdef LOGGING
+    std::cout << "Starting ray tracing ..." << std::endl;
+
+    std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
+    std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
+    std::chrono::time_point<std::chrono::steady_clock> end;
+    std::chrono::milliseconds diff;
+#endif
 
     // if no width or height passed, use dimensions of current viewport
     Eigen::Vector2i image_size(width, height);
@@ -135,6 +146,13 @@ void Flyscene::raytraceScene(int width, int height) {
     for (int i = 0; i < ySize; ++i)
         pixel_data[i].resize(image_size[0]);
 
+#ifdef LOGGING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Initialization stuff: " << diff.count() << "ms" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
+
     // origin of the ray is always the camera center
     Eigen::Vector3f origin = flycamera.getCenter();
 
@@ -148,9 +166,9 @@ void Flyscene::raytraceScene(int width, int height) {
         const auto threadsLeft = threadCount - i;
         const auto ysToDo = ySize - startingY;
 
-        const auto currentYs = ysToDo % threadsLeft == 0 ? ysToDo / threadsLeft : ysPerThread;
+        const int currentYs = ysToDo % threadsLeft == 0 ? ysToDo / threadsLeft : ysPerThread;
 
-        threads.emplace_back(&Flyscene::traceFromY, this, startingY, currentYs, origin, std::ref(pixel_data), image_size);
+        threads.emplace_back(&Flyscene::traceFromY, this, startingY, currentYs, std::ref(origin), std::ref(pixel_data), std::ref(image_size));
 
         startingY += currentYs;
     }
@@ -159,9 +177,20 @@ void Flyscene::raytraceScene(int width, int height) {
         threads[i].join();
     }
 
+#ifdef LOGGING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Writing file: " << diff.count() << "ms" << std::endl;
+#endif
+
     // write the ray tracing result to a PPM image
     Tucano::ImageImporter::writePPMImage("result.ppm", pixel_data);
-    std::cout << "ray tracing done! " << std::endl;
+
+#ifdef LOGGING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - completeStart);
+    std::cout << "Done! Total time: " << diff.count() << "ms" << std::endl;
+#endif
 }
 
 Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex) {
@@ -300,6 +329,11 @@ void Flyscene::traceFromY(int startY, int amountY, Eigen::Vector3f &origin, vect
 
     // for every pixel shoot a ray from the origin through the pixel coords
     for (int y = startY; y < startY + amountY; ++y) {
+
+#ifdef LOGGING
+        std::cout << "Y: " << y << std::endl;
+#endif
+
         for (int x = 0; x < image_size[0]; ++x) {
             // create a ray from the camera passing through the pixel (i,j)
             Eigen::Vector3f screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
