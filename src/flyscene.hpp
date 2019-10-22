@@ -64,7 +64,7 @@ public:
     /**
     * @Brief function that calculates basic shading of an intersected face
     */
-    Eigen::Vector3f shadeOffFace(int faceIndex);
+    Eigen::Vector3f shadeOffFace(int faceIndex, const Eigen::Vector3f& rayDirection);
 
     /**
      * @brief trace a single ray from the camera passing through dest
@@ -107,6 +107,8 @@ private:
 
     // Scene meshes
     Tucano::Mesh mesh;
+
+
 
     /// MTL materials
     vector<Tucano::Material::Mtl> materials;

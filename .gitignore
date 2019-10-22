@@ -1,4 +1,5 @@
 *.ppm
+build/
 
 # Created by https://www.gitignore.io/api/c++,cmake,clion,visualstudio
 # Edit at https://www.gitignore.io/?templates=c++,cmake,clion,visualstudio
