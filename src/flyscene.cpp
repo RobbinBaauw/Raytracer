@@ -16,7 +16,7 @@ void Flyscene::initialize(int width, int height) {
 
     // load the OBJ file and materials
 //    Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/dodgeColorTest.obj");
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube2.obj");
 
 
     // normalize the model (scale to unit cube and center at origin)
@@ -194,7 +194,7 @@ void Flyscene::raytraceScene(int width, int height) {
 #endif
 }
 
-Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& rayDirection) {
+Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& origin, const Eigen::Vector3f& hitPosition) {
     Tucano::Face face = mesh.getFace(faceIndex);
     int materialIndex = face.material_id;
     Tucano::Material::Mtl material = materials[materialIndex];
@@ -204,46 +204,52 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ray
     Eigen::Vector3f color = Eigen::Vector3f(0, 0, 0);
 
     // Iterate over all the present lights
-    for (Eigen::Vector3f lightPosition : lights) {
+    for (const Eigen::Vector3f& lightPosition : lights) {
 
-        //Compute average location face
-        Eigen::Vector3f avgLoc = ((
-                  mesh.getVertex(face.vertex_ids[0]) +
-                  mesh.getVertex(face.vertex_ids[1]) +
-                  mesh.getVertex(face.vertex_ids[2])
-          ) / 3).head(3);
-
-        lightPosition.normalize();
-        Eigen::Vector3f lightDirection = (lightPosition - avgLoc).normalized();
-        Eigen::Vector3f lightIntensity = Eigen::Vector3f(0.5, 0.5, 0.5);
+        Eigen::Vector3f lightDirection = (lightPosition - hitPosition).normalized();
+        Eigen::Vector3f lightIntensity = Eigen::Vector3f(1, 1, 1);
 
         // Ambient term
         Eigen::Vector3f ambient = lightIntensity.cwiseProduct(material.getAmbient());
 
-        std::cout << "Ambient in: " << material.getAmbient().x() << ", " << material.getAmbient().y() << ", " << material.getAmbient().z() << std::endl;
-        std::cout << "Ambient out: " << ambient.x() << ", " << ambient.y() << ", " << ambient.z() << std::endl;
+        std::cout << "Ambient in: " << material.getAmbient() << std::endl;
+        std::cout << "Ambient out: " << ambient << std::endl;
 
         // Diffuse term
         float cos1 = fmaxf(0, lightDirection.dot(faceNormal));
         Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
 
-        std::cout << "Diffuse in: " << material.getDiffuse().x() << ", " << material.getDiffuse().y() << ", " << material.getDiffuse().z() << std::endl;
-        std::cout << "Diffuse out: " << diffuse.x() << ", " << diffuse.y() << ", " << diffuse.z() << std::endl;
+        std::cout << "Diffuse in: " << material.getDiffuse() << std::endl;
+        std::cout << "Diffuse out: " << diffuse << std::endl;
 
         // Specular term
-//        Eigen::Vector3f reflectedLight = lightDirection - 2.f * lightDirection.dot(faceNormal) * faceNormal;
-//        float cos2 = fmax(0, reflectedLight.dot(eyeDirection));
-//        Eigen::Vector3f specular = lightIntensity.cwiseProduct(material.getSpecular()) * (pow(cos2, material.getShininess()));
+        Eigen::Vector3f eyeDirection = (origin - hitPosition).normalized();
+        Eigen::Vector3f reflectedLight = (-lightDirection - 2.f * -lightDirection.dot(faceNormal) * faceNormal);
 
-        color += ambient + diffuse;
+        reflectedLight.normalize();
 
-        std::cout << "Color out: " << color.x() << ", " << color.y() << ", " << color.z() << std::endl;
+        float cos2 = fmax(0, reflectedLight.dot(eyeDirection));
+        Eigen::Vector3f specular = lightIntensity.cwiseProduct(material.getSpecular()) * (pow(cos2, max(material.getShininess(), 100.0f)));
+
+        std::cout << "Specular in: " << material.getSpecular() << std::endl;
+        std::cout << "Specular out: " << specular << std::endl;
+
+        const auto colorSum = ambient + diffuse + specular;
+        const Eigen::Vector3f minSum = {
+                min(colorSum.x(), 1.0f),
+                min(colorSum.y(), 1.0f),
+                min(colorSum.z(), 1.0f)
+        };
+
+        color += minSum;
+
+        std::cout << "Light color out: " << color << std::endl;
     }
 
     return color;
 }
 
-const int MAXRECURSION = 1;
+const int MAXRECURSION = 2;
 
 Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest, int recursionDepth) {
 
@@ -265,9 +271,9 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &des
         assert(currVertexIds.size() == 3);
 
         // Create the vertices
-        const auto v0 = (mesh.getShapeMatrix() * mesh.getVertex(currVertexIds[0])).head(3);
-        const auto v1 = (mesh.getShapeMatrix() * mesh.getVertex(currVertexIds[1])).head(3);
-        const auto v2 = (mesh.getShapeMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
+        const auto v0 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[0])).head(3);
+        const auto v1 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[1])).head(3);
+        const auto v2 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
 
         // Get normal (implemented by Tucano)
         const auto normal = currFace.normal;
@@ -302,7 +308,7 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &des
     }
 
     if (hasIntersected) {
-        const Eigen::Vector3f localShading = shadeOffFace(currentMaxDepthFaceId, direction);
+        const Eigen::Vector3f localShading = shadeOffFace(currentMaxDepthFaceId, origin, currentHitpoint);
 
         std::cout << "Intersection, depth = " << recursionDepth << std::endl;
 
@@ -348,11 +354,10 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &des
     } else {
         std::cout << "No intersection, depth = " << recursionDepth << std::endl;
 
-        // If no intersection, grayish
         return {
-        0.5,
-        0.5,
-        0.5
+        0.0,
+        0.0,
+        0.0
         };
     }
 }
@@ -367,7 +372,9 @@ void Flyscene::traceFromY(int startY, int amountY, Eigen::Vector3f &origin, vect
             Eigen::Vector3f screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
 
             // launch raytracing for the given ray and write result to pixel data
-            pixel_data[x][y] = traceRay(origin, screen_coords, 0);
+            const Eigen::Vector3f &colorOut = traceRay(origin, screen_coords, 0);
+            std::cout << "Color out: " << colorOut.x() << ", " << colorOut.y() << ", " << colorOut.z() << std::endl;
+            pixel_data[x][y] = colorOut;
         }
     }
 }
