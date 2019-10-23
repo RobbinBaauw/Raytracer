@@ -35,7 +35,7 @@ void Flyscene::initialize(int width, int height) {
     // the debug ray is a cylinder, set the radius and length of the cylinder
     ray.setSize(0.005, 10.0);
 
-	std::vector<Eigen::Vector4f> boundaries = boundingVectors();
+	std::vector<Eigen::Vector3f> boundaries = boundingVectors();
 	boundingBox boxMain = boundingBox(boundaries[0], boundaries[1]);
 
 	int numb_faces = mesh.getNumberOfFaces();
@@ -470,10 +470,10 @@ void Flyscene::traceFromY(int startY, int amountY, Eigen::Vector3f &origin, vect
     }
 }
 
-std::vector<Eigen::Vector4f> Flyscene::boundingVectors() {
+std::vector<Eigen::Vector3f> Flyscene::boundingVectors() {
 	int num_verts = mesh.getNumberOfVertices();
-	Eigen::Vector4f vmin = mesh.getVertex(0);
-	Eigen::Vector4f vmax = mesh.getVertex(0);
+	Eigen::Vector3f vmin = { mesh.getVertex(0).x(), mesh.getVertex(0).y(), mesh.getVertex(0).z()};
+	Eigen::Vector3f vmax = { mesh.getVertex(0).x(), mesh.getVertex(0).y(), mesh.getVertex(0).z() };
 	for (int i = 0; i < num_verts; ++i) {
 		Eigen::Vector4f vertex = mesh.getVertex(i);
 		vmin(0) = min(vmin.x(), vertex.x());
@@ -485,12 +485,10 @@ std::vector<Eigen::Vector4f> Flyscene::boundingVectors() {
 		vmin(2) = min(vmin.z(), vertex.z());
 		vmax(2) = max(vmax.z(), vertex.z());
 	}
-	vmin(3) = 1;
-	vmax(3) = 1;
 	return { vmin, vmax };
 }
 
-boundingBox::boundingBox(Eigen::Vector4f vmin, Eigen::Vector4f vmax) {
+boundingBox::boundingBox(Eigen::Vector3f vmin, Eigen::Vector3f vmax) {
 	this->vmin = vmin;
 	this->vmax = vmax;
 }
@@ -507,11 +505,11 @@ std::vector<int> boundingBox::getFaceIndices() {
 	return faceIndices;
 }
 
-Eigen::Vector4f boundingBox::getVmin() {
+Eigen::Vector3f boundingBox::getVmin() {
 	return vmin;
 }
 
-Eigen::Vector4f boundingBox::getVmax() {
+Eigen::Vector3f boundingBox::getVmax() {
 	return vmax;
 }
 
@@ -539,11 +537,11 @@ void boundingBox::splitBox(Tucano::Mesh& mesh) {
 	std::cout << "Longst side " << sideIndex << std::endl;
 
 	//Create the new upper corner for the lower boundingBox
-	Eigen::Vector4f lowerVmax = vmax;
+	Eigen::Vector3f lowerVmax = vmax;
 	lowerVmax(sideIndex) = avg;
 
 	//Create the new lower corner for the upper boundinBox
-	Eigen::Vector4f upperVmin = vmin;
+	Eigen::Vector3f upperVmin = vmin;
 	upperVmin(sideIndex) = avg;
 
 	boundingBox lowerBox = boundingBox(vmin, lowerVmax);
@@ -576,4 +574,12 @@ void boundingBox::splitBox(Tucano::Mesh& mesh) {
 
 std::vector<boundingBox> boundingBox::getChildren() {
 	return children;
+}
+
+Eigen::Vector3f boundingBox::getCorner(int index) {
+	//Smallest corner
+	if (index == 0) return vmin;
+	//Smallest corner except for x coord
+	if (index == 1) return vmin;
+	return vmax;
 }
