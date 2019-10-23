@@ -13,7 +13,8 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/toy.obj");
+//    Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/dodgeColorTest.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
 
   // set the camera's projection matrix
   flycamera.setPerspectiveMatrix(60.0, width / (float)height, 0.1f, 100.0f);
@@ -31,11 +32,50 @@ void Flyscene::initialize(int width, int height) {
     camerarep.resetModelMatrix();
     camerarep.setModelMatrix(flycamera.getViewMatrix().inverse());
 
-  // create a first ray-tracing light source at some random position
-  lights.push_back(Eigen::Vector3f(-0.5, 2.0, 3.0));
+    // the debug ray is a cylinder, set the radius and length of the cylinder
+    ray.setSize(0.005, 10.0);
 
-  // scale the camera representation (frustum) for the ray debug
-  camerarep.shapeMatrix()->scale(0.2);
+	std::vector<Eigen::Vector4f> boundaries = boundingVectors();
+	boundingBox boxMain = boundingBox(boundaries[0], boundaries[1]);
+
+	int numb_faces = mesh.getNumberOfFaces();
+	for (int i = 0; i < numb_faces; ++i) {
+		boxMain.addFaceIndex(i);
+	}
+
+	boxMain.splitBox(std::ref(mesh));
+	std::cout << "boxMain lower" << boxMain.getVmin() << "end lower" << std::endl;
+	std::cout << "LowerChildren Vmax" << boxMain.getChildren()[0].getVmax() << "end child" << std::endl;
+	std::cout << "boxMain upper" << boxMain.getVmax() << "end upper" << std::endl;
+	
+	std::vector<boundingBox> currChildren = boxMain.getChildren();
+	int depth = 0;
+	while (currChildren.size() > 0) {
+		++depth;
+		currChildren = currChildren[0].getChildren();
+	}
+	std::cout << "Depth of the lefmost branch is " << depth << std::endl;
+
+    // craete a first debug ray pointing at the center of the screen
+    createDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
+
+    glEnable(GL_DEPTH_TEST);
+
+    // for (int i = 0; i<mesh.getNumberOfFaces(); ++i){
+    //   Tucano::Face face = mesh.getFace(i);
+    //   for (int j =0; j<face.vertex_ids.size(); ++j){
+    //     std::cout<<"vid "<<j<<" "<<face.vertex_ids[j]<<std::endl;
+    //     std::cout<<"vertex "<<mesh.getVertex(face.vertex_ids[j]).transpose()<<std::endl;
+    //     std::cout<<"normal "<<mesh.getNormal(face.vertex_ids[j]).transpose()<<std::endl;
+    //   }
+    //   std::cout<<"mat id "<<face.material_id<<std::endl<<std::endl;
+    //   std::cout<<"face   normal "<<face.normal.transpose() << std::endl << std::endl;
+    // }
+}
+
+
+
+void Flyscene::paintGL() {
 
   // the debug ray is a cylinder, set the radius and length of the cylinder
   ray.setSize(0.005, 1.0);
@@ -428,4 +468,112 @@ void Flyscene::traceFromY(int startY, int amountY, Eigen::Vector3f &origin, vect
             pixel_data[y][x] = colorOut;
         }
     }
+}
+
+std::vector<Eigen::Vector4f> Flyscene::boundingVectors() {
+	int num_verts = mesh.getNumberOfVertices();
+	Eigen::Vector4f vmin = mesh.getVertex(0);
+	Eigen::Vector4f vmax = mesh.getVertex(0);
+	for (int i = 0; i < num_verts; ++i) {
+		Eigen::Vector4f vertex = mesh.getVertex(i);
+		vmin(0) = min(vmin.x(), vertex.x());
+		vmax(0) = max(vmax.x(), vertex.x());
+
+		vmin(1) = min(vmin.y(), vertex.y());
+		vmax(1) = max(vmax.y(), vertex.y());
+
+		vmin(2) = min(vmin.z(), vertex.z());
+		vmax(2) = max(vmax.z(), vertex.z());
+	}
+	vmin(3) = 1;
+	vmax(3) = 1;
+	return { vmin, vmax };
+}
+
+boundingBox::boundingBox(Eigen::Vector4f vmin, Eigen::Vector4f vmax) {
+	this->vmin = vmin;
+	this->vmax = vmax;
+}
+
+void boundingBox::addFaceIndex(int faceIndex) {
+	faceIndices.push_back(faceIndex);
+}
+
+void boundingBox::setChildren(boundingBox lowerBox, boundingBox upperBox) {
+	children = { lowerBox, upperBox };
+}
+
+std::vector<int> boundingBox::getFaceIndices() {
+	return faceIndices;
+}
+
+Eigen::Vector4f boundingBox::getVmin() {
+	return vmin;
+}
+
+Eigen::Vector4f boundingBox::getVmax() {
+	return vmax;
+}
+
+void boundingBox::splitBox(Tucano::Mesh& mesh) {
+	//This will be a recursive function so we will need a basecase, the minimum amount of faces alowed in a box
+	if (faceIndices.size() < baseCase) {
+		return;
+	}
+	//Get the index of the longest side of the box
+	std::vector<float> side = {vmax(0) - vmin(0), vmax(1) - vmin(1) ,vmax(2) - vmin(2)};
+	int sideIndex = std::max_element(side.begin(), side.end()) - side.begin();
+
+	//Calculate the average point inside the box
+	float sum = 0;
+	float weight = 0;
+	for (std::vector<int>::iterator it = faceIndices.begin(); it != faceIndices.end(); ++it) {
+		Tucano::Face face = mesh.getFace(*it);
+		sum += mesh.getVertex(face.vertex_ids[0])(sideIndex) +
+			mesh.getVertex(face.vertex_ids[1])(sideIndex) +
+			mesh.getVertex(face.vertex_ids[2])(sideIndex);
+		weight += 3;
+	}
+	float avg = sum / weight;
+	std::cout << "Avg: " << avg << std::endl;
+	std::cout << "Longst side " << sideIndex << std::endl;
+
+	//Create the new upper corner for the lower boundingBox
+	Eigen::Vector4f lowerVmax = vmax;
+	lowerVmax(sideIndex) = avg;
+
+	//Create the new lower corner for the upper boundinBox
+	Eigen::Vector4f upperVmin = vmin;
+	upperVmin(sideIndex) = avg;
+
+	boundingBox lowerBox = boundingBox(vmin, lowerVmax);
+	boundingBox upperBox = boundingBox(upperVmin, vmax);
+
+	for (std::vector<int>::iterator it = faceIndices.begin(); it != faceIndices.end(); ++it) {
+		Tucano::Face face = mesh.getFace(*it);
+		float first = mesh.getVertex(face.vertex_ids[0])(sideIndex);
+		float sec = mesh.getVertex(face.vertex_ids[1])(sideIndex);
+		float third = mesh.getVertex(face.vertex_ids[2])(sideIndex);
+
+		if (first > avg && sec > avg && third > avg) {
+			upperBox.addFaceIndex(*it);
+		}
+		else if (first < avg && sec < avg && third < avg) {
+			lowerBox.addFaceIndex(*it);
+		}
+		else {
+			upperBox.addFaceIndex(*it);
+			lowerBox.addFaceIndex(*it);
+		}
+	}
+
+	//Perform recursive splitting of the boxes
+	lowerBox.splitBox(std::ref(mesh));
+	upperBox.splitBox(std::ref(mesh));
+
+	setChildren(lowerBox, upperBox);
+}
+
+std::vector<boundingBox> boundingBox::getChildren() {
+	return children;
 }

@@ -68,6 +68,8 @@ public:
     */
     Eigen::Vector3f shadeOffFace(int faceIndex, const Eigen::Vector3f& rayDirection, const Eigen::Vector3f& hitPosition);
 
+	std::vector<Eigen::Vector4f> boundingVectors();
+
     /**
      * @brief trace a single ray from the camera passing through dest
      * @param origin Ray origin
@@ -117,6 +119,58 @@ private:
 
   /// MTL materials
   vector<Tucano::Material::Mtl> materials;
+};
+
+class boundingBox {
+private:
+	//The indices of all the faces contained in this boundingBox
+	std::vector<int> faceIndices;
+	//The minimum corner of the boundingBox
+	Eigen::Vector4f vmin;
+	//The maximum corner of the boundingBox
+	Eigen::Vector4f vmax;
+
+	//The children of the boundingBox, either 0 or 2. Formed by splitting the box in two along its biggest side
+	std::vector<boundingBox> children;
+
+	//If we have this amount of faces in a box it shouldn't be split any further
+	int baseCase = 200;
+
+public:
+	/**
+	 * @brief Constructor of the boundingBox
+	 * @param smallest corner
+	 * @param biggest corner
+	 */
+	boundingBox(Eigen::Vector4f vmin, Eigen::Vector4f vmax);
+
+	/**
+	 * @brief Adds a faceIndex to the list of indices
+	 * @param index of the face to be added
+	 */
+	void addFaceIndex(int faceIndex);
+
+	/**
+	 * @brief Stores the children boxes of this node. 
+	 * @param box on the smaller side
+	 * @param box on the bigger side
+	 */
+	void setChildren(boundingBox lowerBox, boundingBox upperBox);
+
+	//Return the list of faceIndices of the faces contained by the boundingBox
+	std::vector<int> getFaceIndices();
+
+	Eigen::Vector4f getVmin();
+
+	Eigen::Vector4f getVmax();
+
+	/**
+	 * @brief The function that splits the box in two on the average of the biggest side
+	 * @param The used mesh as a reference "std::ref(mesh)"
+	 */
+	void splitBox(Tucano::Mesh& mesh);
+
+	std::vector<boundingBox> getChildren();
 };
 
 #endif // FLYSCENE
