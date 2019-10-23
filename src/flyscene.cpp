@@ -576,10 +576,39 @@ std::vector<boundingBox> boundingBox::getChildren() {
 	return children;
 }
 
+/** @brief Returns a certain corner of the box.	
+* 0 smallest x-y-z
+* 1 smallest y-z		biggest x
+* 2 smallest y			biggest x-z
+* 3 smallest x-y		biggest z
+* 4 smallest x			biggest y-z
+* 5 smallest x-z		biggest y
+* 6 smallest z			biggest x-y
+* 7 biggest x-y-z
+*/
 Eigen::Vector3f boundingBox::getCorner(int index) {
-	//Smallest corner
+	// smallest x-y-z
 	if (index == 0) return vmin;
-	//Smallest corner except for x coord
-	if (index == 1) return vmin;
+
+	// smallest y-z		biggest x
+	if (index == 1) return Eigen::Vector3f(vmax[0], vmin[1], vmin[2]);
+
+	// smallest y		biggest x-z
+	if (index == 2) return Eigen::Vector3f(vmax[0], vmin[1], vmax[2]);
+
+	// smallest x-y		biggest z
+	if (index == 3) return Eigen::Vector3f(vmin[0], vmin[1], vmax[2]);
+
+	// smallest x		biggest y-z
+	if (index == 4) return Eigen::Vector3f(vmin[0], vmax[1], vmax[2]);
+
+	// smallest x-z		biggest y
+	if (index == 5) return Eigen::Vector3f(vmin[0], vmax[1], vmin[2]);
+
+	// smallest z		biggest x-y
+	if (index == 6) return Eigen::Vector3f(vmax[0], vmin[1], vmax[2]);
+
+	// biggest x-y-z
+	//if (index == 7)
 	return vmax;
 }
