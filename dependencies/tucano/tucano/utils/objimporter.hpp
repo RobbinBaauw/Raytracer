@@ -247,14 +247,17 @@ static void loadObjFile (Tucano::Mesh& mesh, vector<Tucano::Material::Mtl>& mtls
         mesh.loadVertices(vert);
         mesh.storeVertexData (vert);
     }
-    if (norm.size() == vert.size())
+
+    if (norm.size() != vert.size())
+    {
+        computeNormals(vert, elementsVertices, norm);
+
+    }
+    
+    if (norm.size() > 0)
     {
         mesh.loadNormals(norm);
         mesh.storeNormalData (norm);
-    }
-    else
-    {
-        computeNormals(vert, elementsVertices, norm);
     }
 
     // only supports tex coord per vertex and not per face

@@ -593,37 +593,17 @@ public:
 
         // from now on we are just computing some information about the model such as bounding box, centroid ...
 
-        float xMax = vert[0][0]; float xMin = vert[0][0]; float yMax = vert[0][1]; float yMin = vert[0][1]; float zMax = vert[0][2]; float zMin = vert[0][2];
+        float xMax = vert[0][0]; float xMin = vert[0][0]; 
+        float yMax = vert[0][1]; float yMin = vert[0][1]; 
+        float zMax = vert[0][2]; float zMin = vert[0][2];
 
-        int temp = 0;
-        for(unsigned int i = 0; i < numberOfVertices*4; i+=4) {
-
-            //X:
-            if(vert[temp][0] > xMax) {
-                xMax = vert[temp][0];
-            }
-            if(vert[temp][0] < xMin) {
-                xMin = vert[temp][0];
-            }
-
-            //Y:
-            if(vert[temp][1] > yMax) {
-                yMax = vert[temp][1];
-            }
-            if(vert[temp][1] < yMin) {
-                yMin = vert[temp][1];
-            }
-
-            //Z:
-            if(vert[temp][2] > zMax) {
-                zMax = vert[temp][2];
-            }
-            if(vert[temp][2] < zMin) {
-                zMin = vert[temp][2];
-            }
-
-            //W:
-            temp++;
+        for(unsigned int i = 0; i < numberOfVertices; ++i) {            
+            xMax = max(vert[i][0], xMax);
+            yMax = max(vert[i][1], yMax);
+            zMax = max(vert[i][2], zMax);
+            xMin = min(vert[i][0], xMin);
+            yMin = min(vert[i][1], yMin);
+            zMin = min(vert[i][2], zMin);
         }
 
         normalization_scale = 1.0 / (max(max(fabs(xMax-xMin), fabs(yMax-yMin)), fabs(zMax-zMin)));

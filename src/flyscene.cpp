@@ -11,7 +11,7 @@ void Flyscene::initialize(int width, int height) {
 
     // load the OBJ file and materials
 //    Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/dodgeColorTest.obj");
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/toy.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube.obj");
 
   // set the camera's projection matrix
   flycamera.setPerspectiveMatrix(60.0, width / (float)height, 0.1f, 100.0f);
@@ -94,23 +94,76 @@ void Flyscene::paintGL(void) {
   flycamera.renderAtCorner();
 }
 
-void Flyscene::simulate(GLFWwindow *window) {
-  // Update the camera.
-  // NOTE(mickvangelderen): GLFW 3.2 has a problem on ubuntu where some key
-  // events are repeated: https://github.com/glfw/glfw/issues/747. Sucks.
-  float dx = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ? 1.0 : 0.0) -
-             (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ? 1.0 : 0.0);
-  float dy = (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS ||
-                      glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS
-                  ? 1.0
-                  : 0.0) -
-             (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS ||
-                      glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS
-                  ? 1.0
-                  : 0.0);
-  float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 1.0 : 0.0) -
-             (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 1.0 : 0.0);
-  flycamera.translate(dx, dy, dz);
+void Flyscene::raytraceScene(int width, int height) {
+
+#ifdef LOGGING
+    std::cout << "Starting ray tracing ..." << std::endl;
+
+    std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
+    std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
+    std::chrono::time_point<std::chrono::steady_clock> end;
+    std::chrono::milliseconds diff;
+#endif
+
+    // if no width or height passed, use dimensions of current viewport
+    Eigen::Vector2i image_size(width, height);
+    if (width == 0 || height == 0) {
+        image_size = flycamera.getViewportSize();
+    }
+
+    // create 2d vector to hold pixel colors and resize to match image size
+    vector<vector<Eigen::Vector3f>> pixel_data;
+    int ySize = image_size[1];
+    pixel_data.resize(ySize);
+    for (int i = 0; i < ySize; ++i)
+        pixel_data[i].resize(image_size[0]);
+
+#ifdef LOGGING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Initialization stuff: " << diff.count() << "ms" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
+
+    // origin of the ray is always the camera center
+    Eigen::Vector3f origin = flycamera.getCenter();
+
+    const auto threadCount = thread::hardware_concurrency();
+//    const auto threadCount = 1;
+    const auto ysPerThread = ceil((float) ySize / (float) threadCount); // the amount of y coordinates per thread, ceil. Meaning we start with this number and if it is divisble by the remaining threads we do -1
+
+    vector<thread> threads;
+
+    auto startingY = 0;
+    for (int i = 0; i < threadCount; i++) {
+        const auto threadsLeft = threadCount - i;
+        const auto ysToDo = ySize - startingY;
+
+        const int currentYs = ysToDo % threadsLeft == 0 ? ysToDo / threadsLeft : ysPerThread;
+
+        threads.emplace_back(&Flyscene::traceFromY, this, startingY, currentYs, std::ref(origin), std::ref(pixel_data), std::ref(image_size));
+
+        startingY += currentYs;
+    }
+
+    for (int i = 0; i < threadCount; i++) {
+        threads[i].join();
+    }
+
+#ifdef LOGGING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Writing file: " << diff.count() << "ms" << std::endl;
+#endif
+
+    // write the ray tracing result to a PPM image
+    Tucano::ImageImporter::writePPMImage("result.ppm", pixel_data);
+
+#ifdef LOGGING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - completeStart);
+    std::cout << "Done! Total time: " << diff.count() << "ms" << std::endl;
+#endif
 }
 
 Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& origin, const Eigen::Vector3f& hitPosition) {
@@ -190,11 +243,14 @@ const int MAXRECURSION = 2;
 bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Vector3f& direction, Eigen::Vector3f& hitPoint, int& hitPointFaceId) {
 
     bool hasIntersected = false;
-    float currMaxDepth = std::numeric_limits<float>::max();
+    float currentMaxDepth = std::numeric_limits<float>::max();
 
+    Eigen::Vector3f currentHitpoint;
+    int currentMaxDepthFaceId = -1;
+
+    // Get direction of ray
     auto nrOfFaces = mesh.getNumberOfFaces();
     for (int i = 0; i < nrOfFaces; i++) {
-
         // Retrieve the current face and its vertex ids
         const auto currFace = mesh.getFace(i);
         const auto currVertexIds = currFace.vertex_ids;
@@ -202,11 +258,11 @@ bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Ve
         assert(currVertexIds.size() == 3);
 
         // Create the vertices
-        const Eigen::Vector3f v0 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[0])).head(3);
-        const Eigen::Vector3f v1 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[1])).head(3);
-        const Eigen::Vector3f v2 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
+        const auto v0 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[0])).head(3);
+        const auto v1 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[1])).head(3);
+        const auto v2 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
 
-        // Get normal (slide 26)
+        // Get normal (implemented by Tucano)
         const auto normal = currFace.normal;
 
         // Get distance from triangle to origin (see slide 27)
@@ -215,13 +271,8 @@ bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Ve
         // Compute tHit (see slide 10)
         const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
 
-        if (tHit < 0.00001f || tHit >= currMaxDepth) {
-            continue;
-        }
-
         // Compute hit point (see slide 10)
         const auto currentHitPoint = origin + tHit * direction;
-        currMaxDepth = tHit;
 
         // We want to solve p = v2 + a * (v0 - v2) + b * (v1 - v2), see slide 28
         // This we can do by getting the linear combination for (p - v2), thus giving us a and b
@@ -233,12 +284,12 @@ bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Ve
         const auto a = linearCombination[0];
         const auto b = linearCombination[1];
 
-        // No need to calculate "c" as it's (1 - a - b)
-        if (a >= 0.0 && b >= 0.0 && a + b < 1.0) {
+        if (a > 0 && b > 0 && a + b <= 1 && tHit > 0.000001f && tHit < currentMaxDepth) {
             hasIntersected = true;
+            currentMaxDepth = tHit;
 
-            hitPointFaceId = i;
             hitPoint = currentHitPoint;
+            hitPointFaceId = i;
         }
     }
   }
@@ -258,7 +309,7 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
     if (intersectsTriangle(origin, direction, hitPoint, hitPointFaceId)) {
         const Eigen::Vector3f localShading = shadeOffFace(hitPointFaceId, origin, hitPoint);
 
-        std::cout << "Intersection, depth = " << recursionDepth << std::endl;
+//        std::cout << "Intersection, depth = " << recursionDepth << std::endl;
 
         if (recursionDepth < MAXRECURSION) {
             Tucano::Face face = mesh.getFace(hitPointFaceId);
@@ -309,7 +360,7 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
 
         return localShading;
     } else {
-        std::cout << "No intersection, depth = " << recursionDepth << std::endl;
+//        std::cout << "No intersection, depth = " << recursionDepth << std::endl;
 
         return {
         0.0,
