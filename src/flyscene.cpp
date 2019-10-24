@@ -205,17 +205,19 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
 
         Eigen::Vector3f lightDirection = (lightPosition - hitPosition).normalized();
 
+        // Ambient term
+        const Eigen::Vector3f ambient = lightIntensity.cwiseProduct(material.getAmbient());
+
         // Diffuse term
         float cos1 = fmaxf(0, lightDirection.dot(faceNormal));
-        Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
+        const Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
 
         std::cout << "Diffuse in: " << material.getDiffuse() << std::endl;
         std::cout << "Diffuse out: " << diffuse << std::endl;
 
         // Specular term
-        Eigen::Vector3f eyeDirection = (origin - hitPosition).normalized();
-        Eigen::Vector3f reflectedLight = (-lightDirection + 2.f * lightDirection.dot(faceNormal) * faceNormal);
-        reflectedLight.normalize();
+        const Eigen::Vector3f eyeDirection = (origin - hitPosition).normalized();
+        const Eigen::Vector3f reflectedLight = (-lightDirection + 2.f * lightDirection.dot(faceNormal) * faceNormal).normalized();
 
         float cos2 = fmax(0, reflectedLight.dot(eyeDirection));
         Eigen::Vector3f specular = lightIntensity.cwiseProduct(material.getSpecular()) * (pow(cos2, material.getShininess()));
@@ -223,7 +225,7 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
         std::cout << "Specular in: " << material.getSpecular() << std::endl;
         std::cout << "Specular out: " << specular << std::endl;
 
-        const auto colorSum = diffuse + specular;
+        const auto colorSum = diffuse + specular + ambient;
         Eigen::Vector3f minSum = colorSum.cwiseMax(0.0).cwiseMin(1.0);
         minSum[3] = material.getOpticalDensity();
 
