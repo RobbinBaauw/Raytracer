@@ -46,7 +46,9 @@ void initialize(void) {
     std::cout << "R    : Reset camera." << std::endl;
     std::cout << "WASD : Move camera in xz plane." << std::endl;
     std::cout << "Space / shift : Move camera along y axis." << std::endl;
-    std::cout << "G: Shoot debug ray from mouse cursor position." << std::endl;
+    std::cout << "S: Shoot debug ray from mouse cursor position." << std::endl;
+	std::cout << "B: Render the leafboxes" << std::endl;
+	std::cout << "I: Render the intersecting boxes of the debug ray" << std::endl;
     std::cout << "L    : Add new light source at current camera position."
               << std::endl;
     std::cout << "T    : Ray trace the scene." << std::endl;

@@ -10,6 +10,7 @@ const int MAXDEBUGRECURSION = 10;
 
 boundingBox boxMain;
 bool renderBoxBool = false;
+bool renderIntersectedBoxBool = false;
 
 void Flyscene::initialize(int width, int height) {
     // initiliaze the Phong Shading effect for the Opengl Previewer
@@ -104,7 +105,10 @@ void Flyscene::paintGL() {
 
 
 	if (renderBoxBool) {
-		boxMain.renderBox(std::ref(flycamera), std::ref(scene_light), mesh.getShapeModelMatrix(), 0);
+		boxMain.renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), mesh.getShapeModelMatrix(), false);
+	}
+	if (renderIntersectedBoxBool) {
+		boxMain.renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), mesh.getShapeModelMatrix(), true);
 	}
 
 	/*Eigen::Vector3f shape = boxMain.getShape(mesh.getShapeModelMatrix());
@@ -143,6 +147,7 @@ void Flyscene::paintGL(void) {
 	//This code only shows the leaf boundingBoxes when B is pressed.
 	renderBoxBool = false;
 	if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) renderBoxBool = true;
+	if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) renderIntersectedBoxBool = true;
 
     flycamera.translate(dx, dy, dz);
 }

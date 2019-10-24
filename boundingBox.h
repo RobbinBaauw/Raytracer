@@ -15,7 +15,6 @@
 
 static int nodeCount = 0;
 static int leafCount = 0;
-//static std::vector<Eigen::Vector3f> box
 
 #pragma once
 class boundingBox {
@@ -31,9 +30,11 @@ private:
 	std::vector<boundingBox> children;
 
 	//If we have this amount of faces in a box it shouldn't be split any further
-	int baseCase = 1000;
+	int baseCase = 3000;
 
 public:
+	bool hitByRay = false;
+
 	boundingBox(void) = default;
 
 	/**
@@ -204,25 +205,28 @@ public:
 	 * Renders the root box + starts recursively rendering till a certain depth
 	 * @param flycamera, reference
 	 * @param shapeModelMatrix, the modelmatrix of the mesh, to translate the cube to the center of the mesh
-	 * @param depth starts with zero and continues to a certain depth, otherwise bugs out
+	 * @param onlyIntersected if set to true we only show the leaves that are hit by the debug ray
 	 */
-	void renderBox(Tucano::Flycamera& flycamera, Tucano::Camera& scene_light, Eigen::Affine3f shapeModelMatrix, int depth) {
+	void renderLeafBoxes(Tucano::Flycamera& flycamera, Tucano::Camera& scene_light, Eigen::Affine3f shapeModelMatrix, bool onlyIntersected) {
 		if (!children.empty()) {
-			children[0].renderBox(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, depth +1);
-			children[1].renderBox(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, depth + 1);
+			children[0].renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, onlyIntersected);
+			children[1].renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, onlyIntersected);
 		}
 		else {
-			Eigen::Vector3f shape = getShape(shapeModelMatrix);
-			Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
-			bounding.resetModelMatrix();
-			bounding.modelMatrix()->translate(shapeModelMatrix * ((vmax + vmin) / 2));
-			float r = ((double)_CSTDLIB_::rand() / (RAND_MAX));
-			float g = ((double)_CSTDLIB_::rand() / (RAND_MAX));
-			float b = ((double)_CSTDLIB_::rand() / (RAND_MAX));
-			bounding.setColor(Eigen::Vector4f(r, g, b, 0.1));
-			bounding.render(flycamera, scene_light);
+			//Render when we don't want only intersected, and if we do only want intersected then should be hit by the ray as well.
+			bool perform = !onlyIntersected || (onlyIntersected && hitByRay);
+			if (perform) {
+				Eigen::Vector3f shape = getShape(shapeModelMatrix);
+				Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
+				bounding.resetModelMatrix();
+				bounding.modelMatrix()->translate(shapeModelMatrix * ((vmax + vmin) / 2));
+				float r = ((double)_CSTDLIB_::rand() / (RAND_MAX));
+				float g = ((double)_CSTDLIB_::rand() / (RAND_MAX));
+				float b = ((double)_CSTDLIB_::rand() / (RAND_MAX));
+				bounding.setColor(Eigen::Vector4f(r, g, b, 0.1));
+				bounding.render(flycamera, scene_light);
+			}
 		}
-
 	}
 
 	static int getLeaf() {
