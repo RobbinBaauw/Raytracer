@@ -207,7 +207,6 @@ public:
 	 * @param depth starts with zero and continues to a certain depth, otherwise bugs out
 	 */
 	void renderBox(Tucano::Flycamera& flycamera, Tucano::Camera& scene_light, Eigen::Affine3f shapeModelMatrix, int depth) {
-		if (depth > 2) return;
 		Eigen::Vector3f shape = getShape(shapeModelMatrix);
 		Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
 		bounding.resetModelMatrix();
