@@ -9,6 +9,7 @@ const int MAXRECURSION = 5;
 const int MAXDEBUGRECURSION = 10;
 
 boundingBox boxMain;
+bool renderBoxBool = false;
 
 void Flyscene::initialize(int width, int height) {
     // initiliaze the Phong Shading effect for the Opengl Previewer
@@ -102,7 +103,9 @@ void Flyscene::paintGL() {
   // }
 
 
-	boxMain.renderBox(std::ref(flycamera), std::ref(scene_light), mesh.getShapeModelMatrix(), 0);
+	if (renderBoxBool) {
+		boxMain.renderBox(std::ref(flycamera), std::ref(scene_light), mesh.getShapeModelMatrix(), 0);
+	}
 
 	/*Eigen::Vector3f shape = boxMain.getShape(mesh.getShapeModelMatrix());
 	Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
@@ -128,14 +131,18 @@ void Flyscene::paintGL() {
 
 void Flyscene::paintGL(void) {
 
-    float dx = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ? 1.0f : 0.0f) -
-               (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ? 1.0f : 0.0f);
+    float dx = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ? 0.2f : 0.0f) -
+               (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ? 0.2f : 0.0f);
 
-    float dy = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS ? 1.0f : 0.0f) -
-               (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ? 1.0f : 0.0f);
+    float dy = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS ? 0.2f : 0.0f) -
+               (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ? 0.2f : 0.0f);
 
-    float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 1.0f : 0.0f) -
-               (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 1.0f : 0.0f);
+    float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 0.2f : 0.0f) -
+               (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 0.2f : 0.0f);
+
+	//This code only shows the leaf boundingBoxes when B is pressed.
+	renderBoxBool = false;
+	if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) renderBoxBool = true;
 
     flycamera.translate(dx, dy, dz);
 }

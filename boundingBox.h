@@ -31,7 +31,7 @@ private:
 	std::vector<boundingBox> children;
 
 	//If we have this amount of faces in a box it shouldn't be split any further
-	int baseCase = 200;
+	int baseCase = 1000;
 
 public:
 	boundingBox(void) = default;
@@ -216,7 +216,10 @@ public:
 			Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
 			bounding.resetModelMatrix();
 			bounding.modelMatrix()->translate(shapeModelMatrix * ((vmax + vmin) / 2));
-			bounding.setColor(Eigen::Vector4f(0.1, 1, depth * 0.2, 0.1));
+			float r = ((double)_CSTDLIB_::rand() / (RAND_MAX));
+			float g = ((double)_CSTDLIB_::rand() / (RAND_MAX));
+			float b = ((double)_CSTDLIB_::rand() / (RAND_MAX));
+			bounding.setColor(Eigen::Vector4f(r, g, b, 0.1));
 			bounding.render(flycamera, scene_light);
 		}
 
