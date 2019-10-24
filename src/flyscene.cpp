@@ -10,8 +10,7 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-//    Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/dodgeColorTest.obj");
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube2.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube.obj");
 
   // set the camera's projection matrix
   flycamera.setPerspectiveMatrix(60.0, width / (float)height, 0.1f, 100.0f);
@@ -193,8 +192,6 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
     const auto v1Normal = mesh.getNormal(currVertexIds[1]).normalized();
     const auto v2Normal = mesh.getNormal(currVertexIds[2]).normalized();
 
-    const float faceArea = (v1 - v0).cross(v2 - v0).norm() * 0.5;
-
     const auto areaV1V2Hitpoint = (v1 - hitPosition).cross(v2 - hitPosition).norm() * 0.5;
     const auto areaV0V2Hitpoint = (v0 - hitPosition).cross(v2 - hitPosition).norm() * 0.5;
     const auto areaV0V1Hitpoint = (v0 - hitPosition).cross(v1 - hitPosition).norm() * 0.5;
@@ -245,10 +242,96 @@ bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Ve
     bool hasIntersected = false;
     float currentMaxDepth = std::numeric_limits<float>::max();
 
-    Eigen::Vector3f currentHitpoint;
-    int currentMaxDepthFaceId = -1;
+    Eigen::Vector3f hitPoint;
+    int faceId;
+
+    Eigen::Vector3f reflection;
+    Eigen::Vector3f refraction;
+
+Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &dest, const int recursionDepth) {
 
     // Get direction of ray
+    const auto direction = (dest - origin).normalized();
+
+    if (doesIntersect(origin, direction, faceId, hitPoint, reflection, refraction)) {
+        const Eigen::Vector3f localShading = shadeOffFace(faceId, origin, hitPoint);
+
+//        std::cout << "Intersection, depth = " << recursionDepth << std::endl;
+
+        if (recursionDepth < MAXRECURSION) {
+            Tucano::Face face = mesh.getFace(faceId);
+            Eigen::Vector3f faceNormal = face.normal.normalized();
+
+            int materialIndex = face.material_id;
+            if (materialIndex == -1) {
+                return localShading;
+            }
+
+            Tucano::Material::Mtl material = materials[materialIndex];
+
+            const auto &specular = material.getSpecular();
+            float EPSILON = 0.00001f;
+            if (specular.x() > EPSILON || specular.y() > EPSILON || specular.z() > EPSILON) {
+
+                // Reflection
+                reflection.normalize();
+                Eigen::Vector3f reflectionDirection = hitPoint + reflection;
+
+                const Eigen::Vector3f reflectionShading = traceRay(hitPoint, reflectionDirection, recursionDepth + 1);
+                const Eigen::Vector3f weightedReflectionShading = {
+                reflectionShading.x() * specular.x(),
+                reflectionShading.y() * specular.y(),
+                reflectionShading.z() * specular.z()
+                };
+
+                // Refraction
+                refraction.normalize();
+                Eigen::Vector3f refractionDirection = hitPoint + refraction;
+
+                const Eigen::Vector3f refractionShading = traceRay(hitPoint, refractionDirection, recursionDepth + 1);
+                const Eigen::Vector3f weightedRefractionShading = {
+                refractionShading.x() * (1 - specular.x()),
+                refractionShading.y() * (1 - specular.y()),
+                refractionShading.z() * (1 - specular.z())
+                };
+
+                return {
+                        localShading.x() + weightedReflectionShading.x() + weightedRefractionShading.x(),
+                        localShading.y() + weightedReflectionShading.y() + weightedRefractionShading.y(),
+                        localShading.z() + weightedReflectionShading.z() + weightedRefractionShading.z()
+                };
+            }
+        }
+
+        return localShading;
+    } else {
+
+        std::cout << "No intersection, depth = " << recursionDepth << std::endl;
+
+        // Background color
+        if (recursionDepth == 0) {
+            return {
+                    0.7,
+                    0.9,
+                    0.9
+            };
+        }
+
+        return {
+                0.0,
+                0.0,
+                0.0
+        };
+    }
+}
+
+bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
+                             int &faceId, Eigen::Vector3f &hitpoint,
+                             Eigen::Vector3f &reflection, Eigen::Vector3f &refraction) {
+
+    bool hasIntersected = false;
+    float currentMaxDepth = numeric_limits<float>::max();
+
     auto nrOfFaces = mesh.getNumberOfFaces();
     for (int i = 0; i < nrOfFaces; i++) {
         // Retrieve the current face and its vertex ids
@@ -272,7 +355,7 @@ bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Ve
         const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
 
         // Compute hit point (see slide 10)
-        const auto currentHitPoint = origin + tHit * direction;
+        const auto hitPoint = origin + tHit * direction;
 
         // We want to solve p = v2 + a * (v0 - v2) + b * (v1 - v2), see slide 28
         // This we can do by getting the linear combination for (p - v2), thus giving us a and b
@@ -284,92 +367,24 @@ bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Ve
         const auto a = linearCombination[0];
         const auto b = linearCombination[1];
 
-        if (a > 0 && b > 0 && a + b <= 1 && tHit > 0.000001f && tHit < currentMaxDepth) {
+        auto noHit = a < 0 || b < 0 || a + b > 1 || tHit < 0.00001f;
+        if (!noHit && tHit < currentMaxDepth) {
             hasIntersected = true;
             currentMaxDepth = tHit;
 
-            hitPoint = currentHitPoint;
-            hitPointFaceId = i;
+            reflection = direction - 2 * direction.dot(normal) * normal;
+            refraction = Eigen::Vector3f(0, 0, 0); // TODO
+
+            hitpoint = hitPoint;
+            faceId = i;
         }
     }
-  }
 
     return hasIntersected;
 }
 
-Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &dest, const int recursionDepth) {
-
-    // Get direction of ray
-    const auto direction = (dest - origin).normalized();
-
-    // References if intersects
-    Eigen::Vector3f hitPoint;
-    int hitPointFaceId;
-
-    if (intersectsTriangle(origin, direction, hitPoint, hitPointFaceId)) {
-        const Eigen::Vector3f localShading = shadeOffFace(hitPointFaceId, origin, hitPoint);
-
-//        std::cout << "Intersection, depth = " << recursionDepth << std::endl;
-
-        if (recursionDepth < MAXRECURSION) {
-            Tucano::Face face = mesh.getFace(hitPointFaceId);
-            Eigen::Vector3f faceNormal = face.normal.normalized();
-
-            int materialIndex = face.material_id;
-            if (materialIndex == -1) {
-                return localShading;
-            }
-
-            Tucano::Material::Mtl material = materials[materialIndex];
-
-            const auto &specular = material.getSpecular();
-            float EPSILON = 0.00001f;
-            if (specular.x() > EPSILON || specular.y() > EPSILON || specular.z() > EPSILON) {
-
-                // Reflection
-                const auto hitFace = mesh.getFace(hitPointFaceId);
-                const auto normal = hitFace.normal;
-                Eigen::Vector3f reflection = direction - 2 * direction.dot(normal) * normal;
-                reflection.normalize();
-
-                const Eigen::Vector3f newDest = reflection + hitPoint;
-
-                const Eigen::Vector3f reflectionShading = traceRay(hitPoint, newDest, recursionDepth + 1);
-                const Eigen::Vector3f weightedReflectionShading = {
-                reflectionShading.x() * specular.x(),
-                reflectionShading.y() * specular.y(),
-                reflectionShading.z() * specular.z()
-                };
-
-                // Refraction
-                Eigen::Vector3f refraction = { 0, 0, 0 };
-                const Eigen::Vector3f refractionShading = traceRay(hitPoint, refraction, recursionDepth + 1);
-                const Eigen::Vector3f weightedRefractionShading = {
-                refractionShading.x() * (1 - specular.x()),
-                refractionShading.y() * (1 - specular.y()),
-                refractionShading.z() * (1 - specular.z())
-                };
-
-                return {
-                localShading.x() + weightedReflectionShading.x() + weightedRefractionShading.x(),
-                localShading.y() + weightedReflectionShading.y() + weightedRefractionShading.y(),
-                localShading.z() + weightedReflectionShading.z() + weightedRefractionShading.z()
-                };
-            }
-        }
-
-        return localShading;
-    } else {
-//        std::cout << "No intersection, depth = " << recursionDepth << std::endl;
-
-        return {
-        0.0,
-        0.0,
-        0.0
-        };
-    }
-}
-
+void Flyscene::traceFromY(int startY, int amountY, Eigen::Vector3f &origin, vector<vector<Eigen::Vector3f>> &pixel_data,
+                          Eigen::Vector2i &image_size) {
 
     // for every pixel shoot a ray from the origin through the pixel coords
     for (int y = startY; y < startY + amountY; ++y) {

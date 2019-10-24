@@ -74,17 +74,15 @@ public:
      */
     Eigen::Vector3f traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &dest, const int recursionDepth);
 
-    bool intersectsTriangle(
-        const Eigen::Vector3f& origin,
-        const Eigen::Vector3f& direction,
-        Eigen::Vector3f& hitPoint,
-        int& hitPointFaceId
+    bool doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
+        int &faceId, Eigen::Vector3f &hitpoint,
+        Eigen::Vector3f &reflection, Eigen::Vector3f &refraction
     );
 
     void traceFromY(int startY, int amountY,
-            Eigen::Vector3f &origin,
-            vector<vector<Eigen::Vector3f>> &pixel_data,
-            Eigen::Vector2i &image_size);
+        Eigen::Vector3f &origin,
+        vector<vector<Eigen::Vector3f>> &pixel_data,
+        Eigen::Vector2i &image_size);
 
 private:
   // A simple phong shader for rendering meshes
