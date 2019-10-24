@@ -528,7 +528,7 @@ protected:
 	 * @param length is the length of the range (in element units).
 	 * @return A pointer to the mapped range.
 	 */
-	float* mapAttrib( const string name, const unsigned int offset, const unsigned int length )
+	float* mapAttrib( const string name, const uint64_t offset, const uint64_t length )
 	{
 		// Not optimized for a great number of vertex atributes...
 		for( unsigned int i = 0; i < vertex_attributes.size(); ++i )
@@ -577,15 +577,23 @@ public:
      */
     void loadVertices (vector<Eigen::Vector4f> &vert)
     {
+        if (vert.empty())
+            return;
 
         numberOfVertices = vert.size();
+
+        if (numberOfVertices == 0)
+        {
+            std:cerr << "cannot Load Vertices: empty vector!";
+            return;
+        }
 
         // creates new attribute and load vertex coordinates
         createAttribute("in_Position", vert);
 
         // from now on we are just computing some information about the model such as bounding box, centroid ...
 
-        float xMax = 0; float xMin = 0; float yMax = 0; float yMin = 0; float zMax = 0; float zMin = 0;
+        float xMax = vert[0][0]; float xMin = vert[0][0]; float yMax = vert[0][1]; float yMin = vert[0][1]; float zMax = vert[0][2]; float zMin = vert[0][2];
 
         int temp = 0;
         for(unsigned int i = 0; i < numberOfVertices*4; i+=4) {
@@ -618,7 +626,7 @@ public:
             temp++;
         }
 
-        normalization_scale = 1.0/max(max(xMax-xMin, yMax-yMin), zMax-zMin);
+        normalization_scale = 1.0 / (max(max(fabs(xMax-xMin), fabs(yMax-yMin)), fabs(zMax-zMin)));
 
         float centerX = (xMax+xMin)/2.0;
         float centerY = (yMax+yMin)/2.0;
@@ -638,8 +646,6 @@ public:
         for(unsigned int i = 0; i < numberOfVertices; i++) {
             radius = max(radius, ( vert[i].head(3) - centroid ).norm());
         }
-
-        normalization_scale = 1.0/radius;
 
     }
 
@@ -755,7 +761,7 @@ public:
 	 * @param element_size number of elements in an attribute value (number of coordinates in a vertex, for instance).
 	 * @param size Number of attribute values (size of the vertex attribute array).
 	 */
-	void reserveVertices( const int element_size, const unsigned int size )
+	void reserveVertices( const int element_size, const uint64_t size )
 	{
 		numberOfVertices = size;
 		createAttribute( "in_Position", element_size, size );
@@ -766,7 +772,7 @@ public:
 	 * @param element_size number of elements in an attribute value (number of coordinates in a vertex, for instance).
 	 * @param size Number of attribute values (size of the vertex attribute array).
 	 */
-    void reserveNormals( const unsigned int size )
+    void reserveNormals( const uint64_t size )
 	{
 		numberOfNormals = size;
 		createAttribute( "in_Normal", 3, size );
@@ -777,7 +783,7 @@ public:
 	 * @param element_size number of elements in an attribute value (number of coordinates in a vertex, for instance).
 	 * @param size Number of attribute values (size of the vertex attribute array).
 	 */
-    void reserveColors( const int element_size, const unsigned int size )
+    void reserveColors( const int element_size, const uint64_t size )
 	{
 		numberOfNormals = size;
 		createAttribute( "in_Color", element_size, size );
@@ -787,7 +793,7 @@ public:
 	 * @brief Reserve texture coordinate attribute memory in order to fill latter on, with mapTexCoords().
 	 * @param size Number of attribute values (size of the vertex attribute array).
 	 */
-    void reserveTexCoords( const unsigned int size )
+    void reserveTexCoords( const uint64_t size )
 	{
 		numberOfTexCoords = size;
 		createAttribute( "in_TexCoords", 2, size );
@@ -797,7 +803,7 @@ public:
 	 * @brief Reserve index buffer memory in order to fill it latter on, with mapIndices().
 	 * @param size Number of attribute values (number of indices).
 	 */
-	void reserveIndices( const unsigned int size )
+	void reserveIndices( const uint64_t size )
 	{
 		numberOfElements = size;
         GLuint id;
@@ -813,7 +819,7 @@ public:
 	 * @param length is the length of the range (in element units).
 	 * @return A pointer to the mapped range.
 	 */
-    float* mapVertices( const unsigned int offset, const unsigned int length )
+    float* mapVertices( const uint64_t offset, const uint64_t length )
 	{
 		return mapAttrib( "in_Position", offset, length );
 	}
@@ -824,7 +830,7 @@ public:
 	 * @param length is the length of the range (in element units).
 	 * @return A pointer to the mapped range.
 	 */
-	float* mapNormals( const unsigned int offset, const unsigned int length )
+	float* mapNormals( const uint64_t offset, const uint64_t length )
 	{
 		return mapAttrib( "in_Normal", offset, length );
 	}
@@ -835,7 +841,7 @@ public:
 	 * @param length is the length of the range (in element units).
 	 * @return A pointer to the mapped range.
 	 */
-	float* mapColors( const unsigned int offset, const unsigned int length )
+	float* mapColors( const uint64_t offset, const uint64_t length )
 	{
 		return mapAttrib( "in_Color", offset, length );
 	}
@@ -846,7 +852,7 @@ public:
 	 * @param length is the length of the range (in element units).
 	 * @return A pointer to the mapped range.
 	 */
-	float* mapTexCoords( const unsigned int offset, const unsigned int length )
+	float* mapTexCoords( const uint64_t offset, const uint64_t length )
 	{
 		return mapAttrib( "in_TexCoords", offset, length );
 	}
@@ -858,7 +864,7 @@ public:
 	 * lenght.
 	 * @return A pointer to the mapped range.
 	 */
-	unsigned int* mapIndices( const unsigned int offset, const unsigned int length, int index = 0 )
+	uint32_t* mapIndices( const uint64_t offset, const uint64_t length, int index = 0 )
 	{
 		numberOfElements = length;
 		glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, index_buffer_ids[index] );
@@ -1121,7 +1127,7 @@ public:
 	 * @param size Number of attribute values (size of the vertex attribute array).
 	 * @return Pointer to created attribute.
 	 */
-    VertexAttribute* createAttribute( const string name, const int element_size, const unsigned int size )
+    VertexAttribute* createAttribute( const string name, const int element_size, const uint64_t size )
 	{
 		VertexAttribute va( name, size, element_size, GL_FLOAT );
 		vertex_attributes.push_back(va);
