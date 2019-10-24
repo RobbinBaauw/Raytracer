@@ -5,8 +5,8 @@
 #include "flyscene.hpp"
 #include <iostream>
 
-#define WINDOW_WIDTH 250
-#define WINDOW_HEIGHT 250
+#define WINDOW_WIDTH 1000
+#define WINDOW_HEIGHT 1000
 
 Flyscene *flyscene;
 Eigen::Vector2f mouse_pos = Eigen::Vector2f::Zero();
@@ -37,35 +37,34 @@ void initialize(void) {
   glDebugMessageCallback(MessageCallback, 0);
 #endif
 
-  flyscene = new Flyscene();
-  flyscene->initialize(WINDOW_WIDTH, WINDOW_HEIGHT);  
+    flyscene = new Flyscene();
+    flyscene->initialize(WINDOW_WIDTH, WINDOW_HEIGHT);
 
-  std::cout << endl
-            << endl
-            << " ************ usage ************** " << std::endl;
-  std::cout << "R    : Reset camera." << std::endl;
-  std::cout << "WASD : Move camera in xz plane." << std::endl;
-  std::cout << "QEZC : Move camera along y axis." << std::endl;
-  std::cout << "SPACE: Shoot debug ray from mouse cursor position." << std::endl;
-  std::cout << "L    : Add new light source at current camera position."
-            << std::endl;
-  std::cout << "T    : Ray trace the scene." << std::endl;
-  std::cout << "Esc  : Close application." << std::endl;
-  std::cout << " ********************************* " << std::endl;
+    std::cout << endl
+              << endl
+              << " ************ usage ************** " << std::endl;
+    std::cout << "R    : Reset camera." << std::endl;
+    std::cout << "WASD : Move camera in xz plane." << std::endl;
+    std::cout << "Space / shift : Move camera along y axis." << std::endl;
+    std::cout << "G: Shoot debug ray from mouse cursor position." << std::endl;
+    std::cout << "L    : Add new light source at current camera position."
+              << std::endl;
+    std::cout << "T    : Ray trace the scene." << std::endl;
+    std::cout << "Esc  : Close application." << std::endl;
+    std::cout << " ********************************* " << std::endl;
 }
 
-void keyCallback(GLFWwindow *window, int key, int scancode, int action,
-                 int mods) {
-  if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-    glfwSetWindowShouldClose(window, 1);
-  else if (key == GLFW_KEY_R && action == GLFW_PRESS)
-    flyscene->getCamera()->reset();
-  else if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
-    flyscene->createDebugRay(mouse_pos);
-  else if (key == GLFW_KEY_L && action == GLFW_PRESS)
-    flyscene->addLight();
-  else if (key == GLFW_KEY_T && action == GLFW_PRESS)
-    flyscene->raytraceScene();
+void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, 1);
+    else if (key == GLFW_KEY_R && action == GLFW_PRESS)
+        flyscene->getCamera()->reset();
+    else if (key == GLFW_KEY_G && action == GLFW_PRESS)
+        flyscene->startDebugRay(mouse_pos);
+    else if (key == GLFW_KEY_L && action == GLFW_PRESS)
+        flyscene->addLight();
+    else if (key == GLFW_KEY_T && action == GLFW_PRESS)
+        flyscene->raytraceScene();
 }
 
 static void mouseButtonCallback(GLFWwindow *window, int button, int action,

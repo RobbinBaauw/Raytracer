@@ -54,7 +54,9 @@ public:
      * through pixel that mouse is over
      * @param mouse_pos Mouse cursor position in pixels
      */
-    void createDebugRay(const Eigen::Vector2f &mouse_pos);
+    void createDebugRay(const Eigen::Vector3f& origin, const Eigen::Vector3f& direction, int recursionDepth);
+
+    void startDebugRay(const Eigen::Vector2f& mouseCoords);
 
     /**
      * @brief raytrace your scene from current camera position
@@ -107,8 +109,8 @@ private:
   // Scene light represented as a camera
   Tucano::Camera scene_light;
 
-  /// A very thin cylinder to draw a debug ray
-  Tucano::Shapes::Cylinder ray = Tucano::Shapes::Cylinder(0.1, 1.0, 16, 64);
+    /// A very thin cylinder to draw a debug ray
+    vector<Tucano::Shapes::Cylinder> rays;
 
   // Scene meshes
   Tucano::Mesh mesh;

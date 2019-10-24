@@ -1,6 +1,9 @@
 #include "flyscene.hpp"
 #include <GLFW/glfw3.h>
 
+const int MAXRECURSION = 5;
+const int MAXDEBUGRECURSION = 10;
+
 void Flyscene::initialize(int width, int height) {
     // initiliaze the Phong Shading effect for the Opengl Previewer
     phong.initialize();
@@ -10,7 +13,7 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/toy.obj");
 
   // set the camera's projection matrix
   flycamera.setPerspectiveMatrix(60.0, width / (float)height, 0.1f, 100.0f);
@@ -23,14 +26,10 @@ void Flyscene::initialize(int width, int height) {
 
   mesh.normalizeModelMatrix();
 
-  // pass all the materials to the Phong Shader
-  for (int i = 0; i < materials.size(); ++i)
-    phong.addMaterial(materials[i]);
+    startDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
 
-  // set the color and size of the sphere to represent the light sources
-  // same sphere is used for all sources
-  lightrep.setColor(Eigen::Vector4f(1.0, 1.0, 0.0, 1.0));
-  lightrep.setSize(0.15);
+    camerarep.resetModelMatrix();
+    camerarep.setModelMatrix(flycamera.getViewMatrix().inverse());
 
   // create a first ray-tracing light source at some random position
   lights.push_back(Eigen::Vector3f(-0.5, 2.0, 3.0));
@@ -58,6 +57,19 @@ void Flyscene::initialize(int width, int height) {
   // }
 
 
+    for (auto &ray : rays) {
+        // render the ray and camera representation for ray debug
+        ray.render(flycamera, scene_light);
+    }
+
+    camerarep.render(flycamera, scene_light);
+
+    // render ray tracing light sources as yellow spheres
+    for (const auto &light : lights) {
+        lightrep.resetModelMatrix();
+        lightrep.modelMatrix()->translate(light);
+        lightrep.render(flycamera, scene_light);
+    }
 
 }
 
@@ -75,22 +87,55 @@ void Flyscene::paintGL(void) {
   scene_light.resetViewMatrix();
   scene_light.viewMatrix()->translate(-lights.back());
 
-  // render the scene using OpenGL and one light source
-  phong.render(mesh, flycamera, scene_light);
+    flycamera.translate(dx, dy, dz);
+}
+
+void Flyscene::startDebugRay(const Eigen::Vector2f& mouseCoords) {
+
+    rays.clear();
+
+    // from pixel position to world coordinates
+    Eigen::Vector3f screen_pos = flycamera.screenToWorld(mouseCoords);
 
   // render the ray and camera representation for ray debug
   ray.render(flycamera, scene_light);
   camerarep.render(flycamera, scene_light);
 
-  // render ray tracing light sources as yellow spheres
-  for (int i = 0; i < lights.size(); ++i) {
-    lightrep.resetModelMatrix();
-    lightrep.modelMatrix()->translate(lights[i]);
-    lightrep.render(flycamera, scene_light);
-  }
+    createDebugRay(flycamera.getCenter(), dir, 0);
+}
 
-  // render coordinate system at lower right corner
-  flycamera.renderAtCorner();
+void Flyscene::createDebugRay(const Eigen::Vector3f& origin, const Eigen::Vector3f& direction, int recursionDepth) {
+
+    auto currentRay = Tucano::Shapes::Cylinder(0.1, 1.0, 16, 64);
+
+    // the debug ray is a cylinder, set the radius and length of the cylinder
+    currentRay.setSize(0.005, 10.0);
+    currentRay.resetModelMatrix();
+
+    // position and orient the cylinder representing the ray
+    currentRay.setOriginOrientation(origin, direction);
+
+    Eigen::Vector3f hitPoint;
+    int faceId;
+
+    Eigen::Vector3f reflection;
+    Eigen::Vector3f refraction;
+
+    if(doesIntersect(origin, direction, faceId, hitPoint, reflection, refraction) && recursionDepth < MAXDEBUGRECURSION) {
+
+        const auto lengthRay = (origin - hitPoint).norm();
+        currentRay.setSize(0.005, lengthRay);
+
+        // Reflection
+        reflection.normalize();
+        createDebugRay(hitPoint, reflection, recursionDepth + 1);
+
+//        // Refraction
+//        refraction.normalize();
+//        createDebugRay(hitPoint, refraction, recursionDepth + 1);
+    }
+
+    rays.emplace_back(currentRay);
 }
 
 void Flyscene::raytraceScene(int width, int height) {
@@ -237,12 +282,7 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
     return color;
 }
 
-const int MAXRECURSION = 2;
-
-bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Vector3f& direction, Eigen::Vector3f& hitPoint, int& hitPointFaceId) {
-
-    bool hasIntersected = false;
-    float currentMaxDepth = std::numeric_limits<float>::max();
+Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest, int recursionDepth) {
 
     Eigen::Vector3f hitPoint;
     int faceId;
