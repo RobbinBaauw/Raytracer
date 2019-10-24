@@ -11,7 +11,7 @@ void Flyscene::initialize(int width, int height) {
 
     // load the OBJ file and materials
 //    Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/dodgeColorTest.obj");
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube2.obj");
 
   // set the camera's projection matrix
   flycamera.setPerspectiveMatrix(60.0, width / (float)height, 0.1f, 100.0f);
@@ -379,8 +379,8 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
 
             // launch raytracing for the given ray and write result to pixel data
             const Eigen::Vector3f &colorOut = traceRay(origin, screen_coords, 0);
-
-            pixel_data[x][y] = colorOut;
+            std::cout << "Color out: " << colorOut.x() << ", " << colorOut.y() << ", " << colorOut.z() << std::endl;
+            pixel_data[y][x] = colorOut;
         }
     }
 }
