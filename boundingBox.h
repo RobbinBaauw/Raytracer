@@ -13,6 +13,9 @@
 #include <tucano/utils/mtlIO.hpp>
 #include <tucano/utils/objimporter.hpp>
 
+static int nodeCount = 0;
+static int leafCount = 0;
+//static std::vector<Eigen::Vector3f> box
 
 #pragma once
 class boundingBox {
@@ -78,8 +81,10 @@ public:
 	 * @param The used mesh as a reference "std::ref(mesh)"
 	 */
 	void splitBox(Tucano::Mesh& mesh) {
+		++nodeCount;
 		//This will be a recursive function so we will need a basecase, the minimum amount of faces alowed in a box
 		if (faceIndices.size() < baseCase) {
+			++leafCount;
 			return;
 		}
 		//Get the index of the longest side of the box
@@ -129,11 +134,15 @@ public:
 			}
 		}
 
-		//Perform recursive splitting of the boxes
-		lowerBox.splitBox(std::ref(mesh));
-		upperBox.splitBox(std::ref(mesh));
-
-		setChildren(lowerBox, upperBox);
+		//Perform recursive splitting of the boxes but only if the split actually did something.
+		if (lowerBox.faceIndices.size() < 0.8 * faceIndices.size() && upperBox.faceIndices.size() < 0.8 * faceIndices.size()) {
+			lowerBox.splitBox(std::ref(mesh));
+			upperBox.splitBox(std::ref(mesh));
+			setChildren(lowerBox, upperBox);
+		}
+		else {
+			++leafCount;
+		}
 	}
 
 	std::vector<boundingBox> getChildren() {
@@ -198,7 +207,7 @@ public:
 	 * @param depth starts with zero and continues to a certain depth, otherwise bugs out
 	 */
 	void renderBox(Tucano::Flycamera& flycamera, Tucano::Camera& scene_light, Eigen::Affine3f shapeModelMatrix, int depth) {
-		if (depth > 1) return;
+		if (depth > 2) return;
 		Eigen::Vector3f shape = getShape(shapeModelMatrix);
 		Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
 		bounding.resetModelMatrix();
@@ -210,5 +219,13 @@ public:
 			children[0].renderBox(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, depth +1);
 			children[1].renderBox(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, depth + 1);
 		}
+	}
+
+	static int getLeaf() {
+		return leafCount;
+	}
+
+	static int getNode() {
+		return nodeCount;
 	}
 };

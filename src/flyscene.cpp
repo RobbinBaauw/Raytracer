@@ -19,7 +19,7 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-//    Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/dodgeColorTest.obj");
+    //Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/dodgeColorTest.obj");
     Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
 
   // set the camera's projection matrix
@@ -50,9 +50,8 @@ void Flyscene::initialize(int width, int height) {
 	}
 
 	boxMain.splitBox(std::ref(mesh));
-	std::cout << "boxMain lower" << boxMain.getVmin() << "end lower" << std::endl;
-	std::cout << "LowerChildren Vmax" << boxMain.getChildren()[0].getVmax() << "end child" << std::endl;
-	std::cout << "boxMain upper" << boxMain.getVmax() << "end upper" << std::endl;
+	std::cout << "Node count is: " << boundingBox::getNode() << std::endl;
+	std::cout << "Leaf count is: " << boundingBox::getLeaf() << std::endl;
 	
 	std::vector<boundingBox> currChildren = boxMain.getChildren();
 	int depth = 0;
