@@ -26,5 +26,8 @@
     <ClInclude Include="src\flyscene.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="boundingBox.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
