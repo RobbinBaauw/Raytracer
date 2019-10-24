@@ -11,6 +11,7 @@
 #include <tucano/shapes/camerarep.hpp>
 #include <tucano/shapes/cylinder.hpp>
 #include <tucano/shapes/sphere.hpp>
+#include <tucano/shapes/box.hpp>
 #include <tucano/utils/flycamera.hpp>
 #include <tucano/utils/imageIO.hpp>
 #include <tucano/utils/mtlIO.hpp>
@@ -112,10 +113,13 @@ private:
   Tucano::Camera scene_light;
 
     /// A very thin cylinder to draw a debug ray
-    vector<Tucano::Shapes::Cylinder> rays;
+    Tucano::Shapes::Cylinder ray = Tucano::Shapes::Cylinder(0.1, 1.0, 16, 64);
 
-  // Scene meshes
-  Tucano::Mesh mesh;
+    // Scene meshes
+    Tucano::Mesh mesh;
+
+	//// boundingBox that contains the whole mesh and is the root
+	//boundingBox boxMain;
 
   /// MTL materials
   vector<Tucano::Material::Mtl> materials;

@@ -31,6 +31,8 @@ private:
 	int baseCase = 200;
 
 public:
+	boundingBox(void) = default;
+
 	/**
 	 * @brief Constructor of the boundingBox
 	 * @param smallest corner
@@ -95,8 +97,8 @@ public:
 			weight += 3;
 		}
 		float avg = sum / weight;
-		std::cout << "Avg: " << avg << std::endl;
-		std::cout << "Longst side " << sideIndex << std::endl;
+		/*std::cout << "Avg: " << avg << std::endl;
+		std::cout << "Longst side " << sideIndex << std::endl;*/
 
 		//Create the new upper corner for the lower boundingBox
 		Eigen::Vector3f lowerVmax = vmax;
@@ -139,15 +141,15 @@ public:
 	}
 
 	/** @brief Returns a certain corner of the box.
-* 0 smallest x-y-z
-* 1 smallest y-z		biggest x
-* 2 smallest y			biggest x-z
-* 3 smallest x-y		biggest z
-* 4 smallest x			biggest y-z
-* 5 smallest x-z		biggest y
-* 6 smallest z			biggest x-y
-* 7 biggest x-y-z
-*/
+	* 0 smallest x-y-z
+	* 1 smallest y-z		biggest x
+	* 2 smallest y			biggest x-z
+	* 3 smallest x-y		biggest z
+	* 4 smallest x			biggest y-z
+	* 5 smallest x-z		biggest y
+	* 6 smallest z			biggest x-y
+	* 7 biggest x-y-z
+	*/
 	Eigen::Vector3f getCorner(int index) {
 		// smallest x-y-z
 		if (index == 0) return vmin;
@@ -173,5 +175,40 @@ public:
 		// biggest x-y-z
 		//if (index == 7)
 		return vmax;
+	}
+
+	/*
+	 * Returns the size of the x-y-z axis of the cube.
+	 * @param shapeModelMatrix the modelMatrix of the mesh, to transform the boundingBox to the actual size
+	 */
+	Eigen::Vector3f getShape(Eigen::Affine3f shapeModelMatrix) {
+		Eigen::Vector3f minLoc = shapeModelMatrix * vmin;
+		Eigen::Vector3f maxLoc = shapeModelMatrix * vmax;
+		return {
+			maxLoc[0] - minLoc[0],
+			maxLoc[1] - minLoc[1],
+			maxLoc[2] - minLoc[2]
+		};
+	}
+
+	/*
+	 * Renders the root box + starts recursively rendering till a certain depth
+	 * @param flycamera, reference
+	 * @param shapeModelMatrix, the modelmatrix of the mesh, to translate the cube to the center of the mesh
+	 * @param depth starts with zero and continues to a certain depth, otherwise bugs out
+	 */
+	void renderBox(Tucano::Flycamera& flycamera, Tucano::Camera& scene_light, Eigen::Affine3f shapeModelMatrix, int depth) {
+		if (depth > 1) return;
+		Eigen::Vector3f shape = getShape(shapeModelMatrix);
+		Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
+		bounding.resetModelMatrix();
+		bounding.modelMatrix()->translate(shapeModelMatrix * ((vmax + vmin) / 2));
+		bounding.setColor(Eigen::Vector4f(0.1, 1, depth * 0.2, 0.1));
+		bounding.render(flycamera, scene_light);
+
+		if (!children.empty()) {
+			children[0].renderBox(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, depth +1);
+			children[1].renderBox(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, depth + 1);
+		}
 	}
 };

@@ -1,9 +1,14 @@
 #include "flyscene.hpp"
-#include "../boundingBox.h"
 #include <GLFW/glfw3.h>
+#include <cassert>
+#include <thread>
+#include <chrono>
+#include "../boundingBox.h"
 
 const int MAXRECURSION = 5;
 const int MAXDEBUGRECURSION = 10;
+
+boundingBox boxMain;
 
 void Flyscene::initialize(int width, int height) {
     // initiliaze the Phong Shading effect for the Opengl Previewer
@@ -37,7 +42,7 @@ void Flyscene::initialize(int width, int height) {
     ray.setSize(0.005, 10.0);
 
 	std::vector<Eigen::Vector3f> boundaries = boundingVectors();
-	boundingBox boxMain = boundingBox(boundaries[0], boundaries[1]);
+	boxMain = boundingBox(boundaries[0], boundaries[1]);
 
 	int numb_faces = mesh.getNumberOfFaces();
 	for (int i = 0; i < numb_faces; ++i) {
@@ -98,10 +103,18 @@ void Flyscene::paintGL() {
   // }
 
 
-    for (auto &ray : rays) {
-        // render the ray and camera representation for ray debug
-        ray.render(flycamera, scene_light);
-    }
+	boxMain.renderBox(std::ref(flycamera), std::ref(scene_light), mesh.getShapeModelMatrix(), 0);
+
+	/*Eigen::Vector3f shape = boxMain.getShape(mesh.getShapeModelMatrix());
+	Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
+	bounding.resetModelMatrix();
+	bounding.modelMatrix()->translate(mesh.getShapeModelMatrix() * ((boxMain.getVmax() + boxMain.getVmin())/2));
+	bounding.setColor(Eigen::Vector4f(0.1, 1, 0.4, 0.1));
+	bounding.renderLines();
+	bounding.render(flycamera, scene_light);*/
+
+    // render the scene using OpenGL and one light source
+    phong.render(mesh, flycamera, scene_light);
 
     camerarep.render(flycamera, scene_light);
 
@@ -116,17 +129,14 @@ void Flyscene::paintGL() {
 
 void Flyscene::paintGL(void) {
 
-  // update the camera view matrix with the last mouse interactions
-  flycamera.updateViewMatrix();
-  Eigen::Vector4f viewport = flycamera.getViewport();
+    float dx = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ? 1.0f : 0.0f) -
+               (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ? 1.0f : 0.0f);
 
-  // clear the screen and set background color
-  glClearColor(0.9, 0.9, 0.9, 0.0);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    float dy = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS ? 1.0f : 0.0f) -
+               (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ? 1.0f : 0.0f);
 
-  // position the scene light at the last ray-tracing light source
-  scene_light.resetViewMatrix();
-  scene_light.viewMatrix()->translate(-lights.back());
+    float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 1.0f : 0.0f) -
+               (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 1.0f : 0.0f);
 
     flycamera.translate(dx, dy, dz);
 }
