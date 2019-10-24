@@ -72,23 +72,13 @@ public:
      * @param dest Other point on the ray, usually screen coordinates
      * @return a RGB color
      */
-    Eigen::Vector3f traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest, int recursionDepth);
+    Eigen::Vector3f traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &dest, const int recursionDepth);
 
     bool intersectsTriangle(
         const Eigen::Vector3f& origin,
-        const Eigen::Vector3f& dest,
         const Eigen::Vector3f& direction,
         Eigen::Vector3f& hitPoint,
         int& hitPointFaceId
-    );
-
-    bool intersectsPlane(
-        const Eigen::Vector3f& origin,
-        const Eigen::Vector3f& direction,
-        const Eigen::Vector3f& normal,
-        const Eigen::Vector3f& v0,
-        float& currMaxDepth,
-        Eigen::Vector3f& hitPoint
     );
 
     void traceFromY(int startY, int amountY,

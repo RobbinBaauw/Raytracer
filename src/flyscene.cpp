@@ -11,7 +11,7 @@ void Flyscene::initialize(int width, int height) {
 
     // load the OBJ file and materials
 //    Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/dodgeColorTest.obj");
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/toy.obj");
 
   // set the camera's projection matrix
   flycamera.setPerspectiveMatrix(60.0, width / (float)height, 0.1f, 100.0f);
@@ -114,8 +114,16 @@ void Flyscene::simulate(GLFWwindow *window) {
 }
 
 Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& origin, const Eigen::Vector3f& hitPosition) {
+
+    Eigen::Vector3f color = Eigen::Vector3f(0, 0, 0);
+
     Tucano::Face face = mesh.getFace(faceIndex);
+
     int materialIndex = face.material_id;
+    if (materialIndex == -1) {
+        return color;
+    }
+
     Tucano::Material::Mtl material = materials[materialIndex];
 
     Eigen::Vector3f lightIntensity = Eigen::Vector3f(1, 1, 1);
@@ -141,8 +149,6 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
     Eigen::Vector3f faceNormal = areaV1V2Hitpoint * v0Normal + areaV0V2Hitpoint * v1Normal + areaV0V1Hitpoint * v2Normal;
     faceNormal = faceNormal / faceArea;
     faceNormal.normalize();
-
-    Eigen::Vector3f color = Eigen::Vector3f(0, 0, 0);
 
     // Iterate over all the present lights
     for (const Eigen::Vector3f& lightPosition : lights) {
@@ -181,30 +187,10 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
 
 const int MAXRECURSION = 2;
 
-bool Flyscene::intersectsPlane(const Eigen::Vector3f& origin, const Eigen::Vector3f& direction,
-        const Eigen::Vector3f& normal, const Eigen::Vector3f& v0,
-        float& currMaxDepth, Eigen::Vector3f& hitPoint) {
+bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Vector3f& direction, Eigen::Vector3f& hitPoint, int& hitPointFaceId) {
 
-    // Get distance from triangle to origin (see slide 27)
-    const auto originDistance = normal.dot(v0);
-
-    // Compute tHit (see slide 10)
-    const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
-
-    if (tHit < 0.00001f || tHit >= currMaxDepth) {
-        return false;
-    }
-
-    // Compute hit point (see slide 10)
-    hitPoint = origin + tHit * direction;
-    currMaxDepth = tHit;
-
-    return true;
-}
-
-bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Vector3f& dest, const Eigen::Vector3f& direction, Eigen::Vector3f& hitPoint, int& hitPointFaceId) {
     bool hasIntersected = false;
-    float currentMaxDepth = std::numeric_limits<float>::max();
+    float currMaxDepth = std::numeric_limits<float>::max();
 
     auto nrOfFaces = mesh.getNumberOfFaces();
     for (int i = 0; i < nrOfFaces; i++) {
@@ -221,24 +207,34 @@ bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Ve
         const Eigen::Vector3f v2 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
 
         // Get normal (slide 26)
-        const auto normal = ((v1 - v0).cross(v2 - v0)).normalized();
+        const auto normal = currFace.normal;
 
-        Eigen::Vector3f currentHitPoint;
-        if (!intersectsPlane(origin, direction, normal, v0, currentMaxDepth, currentHitPoint)) {
-            return false;
+        // Get distance from triangle to origin (see slide 27)
+        const auto originDistance = normal.dot(v0);
+
+        // Compute tHit (see slide 10)
+        const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
+
+        if (tHit < 0.00001f || tHit >= currMaxDepth) {
+            continue;
         }
 
-        const float denom = normal.dot(normal);
+        // Compute hit point (see slide 10)
+        const auto currentHitPoint = origin + tHit * direction;
+        currMaxDepth = tHit;
 
-        const auto edge0 = v1 - v0;
-        const auto edge1 = v2 - v1;
-        const auto edge2 = v0 - v2;
+        // We want to solve p = v2 + a * (v0 - v2) + b * (v1 - v2), see slide 28
+        // This we can do by getting the linear combination for (p - v2), thus giving us a and b
+        // So we solve Ax = b where A exists of (v0 - v2), (v1, v2) and b exists of (p - v2)
+        Eigen::Matrix<float, 3, 2> A;
+        A << (v0 - v2), (v1 - v2);
 
-        const float a = normal.dot(edge1.cross(currentHitPoint - v1)) / denom;
-        const float b = normal.dot(edge2.cross(currentHitPoint - v2)) / denom;
+        const auto linearCombination = A.colPivHouseholderQr().solve(hitPoint - v2);
+        const auto a = linearCombination[0];
+        const auto b = linearCombination[1];
 
         // No need to calculate "c" as it's (1 - a - b)
-        if (a > 0.0 && b > 0.0 && a + b < 1.000001) {
+        if (a >= 0.0 && b >= 0.0 && a + b < 1.0) {
             hasIntersected = true;
 
             hitPointFaceId = i;
@@ -250,7 +246,7 @@ bool Flyscene::intersectsTriangle(const Eigen::Vector3f& origin, const Eigen::Ve
     return hasIntersected;
 }
 
-Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest, int recursionDepth) {
+Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &dest, const int recursionDepth) {
 
     // Get direction of ray
     const auto direction = (dest - origin).normalized();
@@ -259,7 +255,7 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &des
     Eigen::Vector3f hitPoint;
     int hitPointFaceId;
 
-    if (intersectsTriangle(origin, dest, direction, hitPoint, hitPointFaceId)) {
+    if (intersectsTriangle(origin, direction, hitPoint, hitPointFaceId)) {
         const Eigen::Vector3f localShading = shadeOffFace(hitPointFaceId, origin, hitPoint);
 
         std::cout << "Intersection, depth = " << recursionDepth << std::endl;
@@ -267,7 +263,12 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &des
         if (recursionDepth < MAXRECURSION) {
             Tucano::Face face = mesh.getFace(hitPointFaceId);
             Eigen::Vector3f faceNormal = face.normal.normalized();
+
             int materialIndex = face.material_id;
+            if (materialIndex == -1) {
+                return localShading;
+            }
+
             Tucano::Material::Mtl material = materials[materialIndex];
 
             const auto &specular = material.getSpecular();
@@ -278,7 +279,11 @@ Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &des
                 const auto hitFace = mesh.getFace(hitPointFaceId);
                 const auto normal = hitFace.normal;
                 Eigen::Vector3f reflection = direction - 2 * direction.dot(normal) * normal;
-                const Eigen::Vector3f reflectionShading = traceRay(hitPoint, reflection, recursionDepth + 1);
+                reflection.normalize();
+
+                const Eigen::Vector3f newDest = reflection + hitPoint;
+
+                const Eigen::Vector3f reflectionShading = traceRay(hitPoint, newDest, recursionDepth + 1);
                 const Eigen::Vector3f weightedReflectionShading = {
                 reflectionShading.x() * specular.x(),
                 reflectionShading.y() * specular.y(),
