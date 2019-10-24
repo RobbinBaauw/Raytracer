@@ -207,17 +207,19 @@ public:
 	 * @param depth starts with zero and continues to a certain depth, otherwise bugs out
 	 */
 	void renderBox(Tucano::Flycamera& flycamera, Tucano::Camera& scene_light, Eigen::Affine3f shapeModelMatrix, int depth) {
-		Eigen::Vector3f shape = getShape(shapeModelMatrix);
-		Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
-		bounding.resetModelMatrix();
-		bounding.modelMatrix()->translate(shapeModelMatrix * ((vmax + vmin) / 2));
-		bounding.setColor(Eigen::Vector4f(0.1, 1, depth * 0.2, 0.1));
-		bounding.render(flycamera, scene_light);
-
 		if (!children.empty()) {
 			children[0].renderBox(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, depth +1);
 			children[1].renderBox(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, depth + 1);
 		}
+		else {
+			Eigen::Vector3f shape = getShape(shapeModelMatrix);
+			Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
+			bounding.resetModelMatrix();
+			bounding.modelMatrix()->translate(shapeModelMatrix * ((vmax + vmin) / 2));
+			bounding.setColor(Eigen::Vector4f(0.1, 1, depth * 0.2, 0.1));
+			bounding.render(flycamera, scene_light);
+		}
+
 	}
 
 	static int getLeaf() {
