@@ -159,20 +159,11 @@ void Flyscene::startDebugRay(const Eigen::Vector2f& mouseCoords) {
     // from pixel position to world coordinates
     Eigen::Vector3f screen_pos = flycamera.screenToWorld(mouseCoords);
 
-  // render the ray and camera representation for ray debug
-  ray.render(flycamera, scene_light);
-  camerarep.render(flycamera, scene_light);
+	std::vector<int> indices;
+	boxMain.intersectingBoxes(flycamera.getCenter(), screen_pos, indices);
 
-    createDebugRay(flycamera.getCenter(), dir, 0);
-}
-
-void Flyscene::createDebugRay(const Eigen::Vector3f& origin, const Eigen::Vector3f& direction, int recursionDepth) {
-
-    auto currentRay = Tucano::Shapes::Cylinder(0.1, 1.0, 16, 64);
-
-    // the debug ray is a cylinder, set the radius and length of the cylinder
-    currentRay.setSize(0.005, 10.0);
-    currentRay.resetModelMatrix();
+    // direction from camera center to click position
+    Eigen::Vector3f dir = (screen_pos - flycamera.getCenter()).normalized();
 
     // position and orient the cylinder representing the ray
     currentRay.setOriginOrientation(origin, direction);

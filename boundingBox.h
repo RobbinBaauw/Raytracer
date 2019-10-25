@@ -268,4 +268,71 @@ public:
 	static int getNode() {
 		return nodeCount;
 	}
+
+	/*
+	* Returns true if there is intersection between the bounding box and ray.
+	* @param box, this is the bounding box
+	* @param origin, the origin of the ray
+	* @param dest, the destination
+	*/
+	bool boxIntersection(Eigen::Vector3f origin, Eigen::Vector3f dest) {
+		Eigen::Vector3f dir = (dest - origin).normalized();
+		float tx_min = (vmin.x() - origin.x()) / dir.x();
+		float tx_max = (vmax.x() - origin.x()) / dir.x();
+
+		if (tx_min > tx_max) swap(tx_min, tx_max);
+
+		float ty_min = (vmin.y() - origin.y()) / dir.y();
+		float ty_max = (vmax.y() - origin.y()) / dir.y();
+
+		if (ty_min > ty_max) swap(ty_min, ty_max);
+
+		float tz_min = (vmin.z() - origin.z()) / dir.z();
+		float tz_max = (vmax.z() - origin.z()) / dir.z();
+
+		if (tz_min > tz_max) swap(tz_min, tz_max);
+
+		float tin_x = min(tx_min, tx_max);
+		float tout_x = max(tx_min, tx_max);
+
+		float tin_y = min(ty_min, ty_max);
+		float tout_y = max(ty_min, ty_max);
+
+		float tin_z = min(tz_min, tz_max);
+		float tout_z = max(tz_min, tz_max);
+
+		float tin = max(tin_x, max(tin_y, tin_z));
+		float tout = min(tout_x, min(tout_y, tout_z));
+
+		if (tin > tout || tout < 0) {
+			return false;
+		}
+		return true;
+	}
+
+	/*
+	* Returns the unique face indices of the boxes that intersect with the light ray.
+	* @param box, the bounding box
+	* @param origin, the origin of the ray
+	* @param dest, the destination
+	* @param intersectingFaces, an empty vector list of face indices.
+	*/
+	void intersectingBoxes(Eigen::Vector3f origin, Eigen::Vector3f dest, std::vector<int> intersectingFaces) {
+		if (getChildren().size() == 0) {
+			if (boxIntersection(origin, dest)) {
+				hitByRay = true;
+				for (int k = 0; k < getFaceIndices().size(); ++k) {
+					//intersectingFaces.push_back(getFaceIndices().at(k));
+				}
+			}
+			else hitByRay = false;
+			return;
+		}
+
+
+		children[0].intersectingBoxes(origin, dest, intersectingFaces);
+		children[1].intersectingBoxes(origin, dest, intersectingFaces);
+	}
 };
+
+
