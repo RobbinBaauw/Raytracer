@@ -64,6 +64,14 @@ public:
 		children = { lowerBox, upperBox };
 	}
 
+	void setVminIndex(float min, int index) {
+		vmin(index) = min;
+	}
+
+	void setVmaxIndex(float max, int index) {
+		vmax(index) = max;
+	}
+
 	//Return the list of faceIndices of the faces contained by the boundingBox
 	std::vector<int> getFaceIndices() {
 		return faceIndices;
@@ -108,14 +116,19 @@ public:
 
 		//Create the new upper corner for the lower boundingBox
 		Eigen::Vector3f lowerVmax = vmax;
+		//Setting avg for now will change
 		lowerVmax(sideIndex) = avg;
 
 		//Create the new lower corner for the upper boundinBox
 		Eigen::Vector3f upperVmin = vmin;
+		//Setting avg for now will change later in scope
 		upperVmin(sideIndex) = avg;
 
 		boundingBox lowerBox = boundingBox(vmin, lowerVmax);
 		boundingBox upperBox = boundingBox(upperVmin, vmax);
+
+		float lowerMax = std::numeric_limits<float>::min();
+		float upperMin = std::numeric_limits<float>::max();
 
 		for (std::vector<int>::iterator it = faceIndices.begin(); it != faceIndices.end(); ++it) {
 			Tucano::Face face = mesh.getFace(*it);
@@ -130,10 +143,16 @@ public:
 				lowerBox.addFaceIndex(*it);
 			}
 			else {
+				lowerMax = max(first, max(sec, max(third, avg)));
+				upperMin = min(first, min(sec, min(third, avg)));
+
 				upperBox.addFaceIndex(*it);
 				lowerBox.addFaceIndex(*it);
 			}
 		}
+
+		upperBox.setVminIndex(upperMin, sideIndex);
+		lowerBox.setVmaxIndex(lowerMax, sideIndex);
 
 		//Perform recursive splitting of the boxes but only if the split actually did something.
 		if (lowerBox.faceIndices.size() < 0.8 * faceIndices.size() && upperBox.faceIndices.size() < 0.8 * faceIndices.size()) {
