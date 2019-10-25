@@ -146,6 +146,7 @@ void Flyscene::paintGL(void) {
 
 	//This code only shows the leaf boundingBoxes when B is pressed.
 	renderBoxBool = false;
+	renderIntersectedBoxBool = false;
 	if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) renderBoxBool = true;
 	if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) renderIntersectedBoxBool = true;
 
@@ -160,7 +161,7 @@ void Flyscene::startDebugRay(const Eigen::Vector2f& mouseCoords) {
     Eigen::Vector3f screen_pos = flycamera.screenToWorld(mouseCoords);
 
 	std::vector<int> indices;
-	boxMain.intersectingBoxes(flycamera.getCenter(), screen_pos, indices);
+	boxMain.intersectingBoxes(flycamera.getCenter(), screen_pos, indices, mesh.getShapeModelMatrix());
 
     // direction from camera center to click position
     Eigen::Vector3f dir = (screen_pos - flycamera.getCenter()).normalized();

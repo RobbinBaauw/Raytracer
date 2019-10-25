@@ -32,7 +32,7 @@ private:
 	std::vector<boundingBox> children;
 
 	//If we have this amount of faces in a box it shouldn't be split any further
-	int baseCase = 3000;
+	int baseCase = 1000;
 
 public:
 	bool hitByRay = false;
@@ -275,20 +275,24 @@ public:
 	* @param origin, the origin of the ray
 	* @param dest, the destination
 	*/
-	bool boxIntersection(Eigen::Vector3f origin, Eigen::Vector3f dest) {
+	bool boxIntersection(Eigen::Vector3f origin, Eigen::Vector3f dest, Eigen::Affine3f shapeModelMatrix) {
 		Eigen::Vector3f dir = (dest - origin).normalized();
-		float tx_min = (vmin.x() - origin.x()) / dir.x();
-		float tx_max = (vmax.x() - origin.x()) / dir.x();
+
+		Eigen::Vector3f minLoc = shapeModelMatrix * vmin;
+		Eigen::Vector3f maxLoc = shapeModelMatrix * vmax;
+
+		float tx_min = (minLoc.x() - origin.x()) / dir.x();
+		float tx_max = (maxLoc.x() - origin.x()) / dir.x();
 
 		if (tx_min > tx_max) swap(tx_min, tx_max);
 
-		float ty_min = (vmin.y() - origin.y()) / dir.y();
-		float ty_max = (vmax.y() - origin.y()) / dir.y();
+		float ty_min = (minLoc.y() - origin.y()) / dir.y();
+		float ty_max = (maxLoc.y() - origin.y()) / dir.y();
 
 		if (ty_min > ty_max) swap(ty_min, ty_max);
 
-		float tz_min = (vmin.z() - origin.z()) / dir.z();
-		float tz_max = (vmax.z() - origin.z()) / dir.z();
+		float tz_min = (minLoc.z() - origin.z()) / dir.z();
+		float tz_max = (maxLoc.z() - origin.z()) / dir.z();
 
 		if (tz_min > tz_max) swap(tz_min, tz_max);
 
@@ -317,21 +321,21 @@ public:
 	* @param dest, the destination
 	* @param intersectingFaces, an empty vector list of face indices.
 	*/
-	void intersectingBoxes(Eigen::Vector3f origin, Eigen::Vector3f dest, std::vector<int> intersectingFaces) {
+	void intersectingBoxes(Eigen::Vector3f origin, Eigen::Vector3f dest, std::vector<int> intersectingFaces, Eigen::Affine3f shapeModelMatrix) {
 		if (getChildren().size() == 0) {
-			if (boxIntersection(origin, dest)) {
+			if (boxIntersection(origin, dest, shapeModelMatrix)) {
+				std::cout << "HIT" << std::endl;
 				hitByRay = true;
 				for (int k = 0; k < getFaceIndices().size(); ++k) {
-					//intersectingFaces.push_back(getFaceIndices().at(k));
+					intersectingFaces.push_back(getFaceIndices().at(k));
 				}
 			}
 			else hitByRay = false;
-			return;
+			return; 
 		}
 
-
-		children[0].intersectingBoxes(origin, dest, intersectingFaces);
-		children[1].intersectingBoxes(origin, dest, intersectingFaces);
+		children[0].intersectingBoxes(origin, dest, intersectingFaces, shapeModelMatrix);
+		children[1].intersectingBoxes(origin, dest, intersectingFaces, shapeModelMatrix);
 	}
 };
 

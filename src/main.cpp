@@ -46,7 +46,7 @@ void initialize(void) {
     std::cout << "R    : Reset camera." << std::endl;
     std::cout << "WASD : Move camera in xz plane." << std::endl;
     std::cout << "Space / shift : Move camera along y axis." << std::endl;
-    std::cout << "S: Shoot debug ray from mouse cursor position." << std::endl;
+    std::cout << "Z: Shoot debug ray from mouse cursor position." << std::endl;
 	std::cout << "B: Render the leafboxes" << std::endl;
 	std::cout << "I: Render the intersecting boxes of the debug ray" << std::endl;
     std::cout << "L    : Add new light source at current camera position."
@@ -61,8 +61,8 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
         glfwSetWindowShouldClose(window, 1);
     else if (key == GLFW_KEY_R && action == GLFW_PRESS)
         flyscene->getCamera()->reset();
-    else if (key == GLFW_KEY_G && action == GLFW_PRESS)
-        flyscene->startDebugRay(mouse_pos);
+    else if (key == GLFW_KEY_Z && action == GLFW_PRESS)
+        flyscene->createDebugRay(mouse_pos);
     else if (key == GLFW_KEY_L && action == GLFW_PRESS)
         flyscene->addLight();
     else if (key == GLFW_KEY_T && action == GLFW_PRESS)
