@@ -16,6 +16,8 @@
 static int nodeCount = 0;
 static int leafCount = 0;
 
+static int deleteCount = 0;
+
 #pragma once
 class boundingBox {
 private:
@@ -244,6 +246,17 @@ public:
 				float b = ((double)_CSTDLIB_::rand() / (RAND_MAX));
 				bounding.setColor(Eigen::Vector4f(r, g, b, 0.1));
 				bounding.render(flycamera, scene_light);
+
+				if (deleteCount < 1) {
+					std::cout << "vmin" << shapeModelMatrix * vmin << std::endl;
+					std::cout << "vmax" << shapeModelMatrix * vmax << std::endl;
+
+					std::cout << "Shape " << getShape(shapeModelMatrix) << std::endl;
+					std::cout << "modelmatrix" << bounding.getModelMatrix().matrix() << std::endl;
+					std::cout << "shapematrix" << bounding.getShapeMatrix().matrix() << std::endl;
+					std::cout << "shapemodelmatrix" << bounding.getShapeModelMatrix().matrix() << std::endl;
+					++deleteCount;
+				}
 			}
 		}
 	}
