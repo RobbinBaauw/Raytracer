@@ -30,19 +30,7 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-    //Tucano::MeshImporter::loadObjFile(mesh, materials,"resources/models/dodgeColorTest.obj");
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
-
-  // set the camera's projection matrix
-  flycamera.setPerspectiveMatrix(60.0, width / (float)height, 0.1f, 100.0f);
-  flycamera.setViewport(Eigen::Vector2f((float)width, (float)height));
-
-#ifdef TIMESTAMPING
-    end = std::chrono::steady_clock::now();
-    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::cout << "Loading obj: " << diff.count() << "ms" << std::endl;
-    start = std::chrono::steady_clock::now();
-#endif
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/shadowmodel.obj");
 
     // normalize the model (scale to unit cube and center at origin)
     mesh.normalizeModelMatrix();
@@ -403,12 +391,15 @@ void Flyscene::raytraceScene() {
 
 Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &origin, const Eigen::Vector3f &hitPosition) {
 
-    Eigen::Vector3f color = Eigen::Vector3f(0, 0, 0);
+    Eigen::Vector3f color = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
 
-    int &materialIndex = precomputedData.faceMaterialIds[faceIndex];
-    if (materialIndex == -1) {
+    Tucano::Face face = mesh.getFace(faceIndex);
+	
+
+    int materialIndex = face.material_id;
+   /* if (materialIndex == -1) {
         return color;
-    }
+    }*/
 
     Tucano::Material::Mtl &material = materials[materialIndex];
 
@@ -434,30 +425,46 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
     faceNormal = faceNormal / faceArea;
     faceNormal.normalize();
 
-    // Iterate over all the present lights
-    for (const Eigen::Vector3f &lightPosition : lights) {
+	if (!(checkIfShadow(hitPosition)))
+	{
+		// Iterate over all the present lights
+		for (const Eigen::Vector3f& lightPosition : lights) {
 
-        Eigen::Vector3f lightDirection = (lightPosition - hitPosition).normalized();
+			// Ambient term
 
-        // Ambient term
-        const Eigen::Vector3f ambient = lightIntensity.cwiseProduct(material.getAmbient());
+			Eigen::Vector3f lightDirection = (lightPosition - hitPosition).normalized();
+			const Eigen::Vector3f ambient = lightIntensity.cwiseProduct(material.getAmbient());
 
-        // Diffuse term
-        float cos1 = fmaxf(0, lightDirection.dot(faceNormal));
-        const Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
+			// Diffuse term
+			float cos1 = fmaxf(0, lightDirection.dot(faceNormal));
+			const Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
 
-        // Specular term
-        const Eigen::Vector3f eyeDirection = (origin - hitPosition).normalized();
-        const Eigen::Vector3f reflectedLight = (-lightDirection + 2.f * lightDirection.dot(faceNormal) * faceNormal).normalized();
+			// Specular term
+			const Eigen::Vector3f eyeDirection = (origin - hitPosition).normalized();
+			const Eigen::Vector3f reflectedLight = (-lightDirection + 2.f * lightDirection.dot(faceNormal) * faceNormal).normalized();
 
-        float cos2 = fmax(0, reflectedLight.dot(eyeDirection));
-        Eigen::Vector3f specular = lightIntensity.cwiseProduct(material.getSpecular()) * (pow(cos2, material.getShininess()));
+			float cos2 = fmax(0, reflectedLight.dot(eyeDirection));
+			Eigen::Vector3f specular = lightIntensity.cwiseProduct(material.getSpecular()) * (pow(cos2, material.getShininess()));
 
-        const auto colorSum = diffuse + specular + ambient;
-        Eigen::Vector3f minSum = colorSum.cwiseMax(0.0).cwiseMin(1.0);
 
-        color += minSum;
-    }
+			const auto colorSum = diffuse + specular + ambient;
+			const auto colorSumMinMax = colorSum.cwiseMax(0.0).cwiseMin(1.0);
+			//        Eigen::Vector4f minSum = {
+			//                colorSumMinMax.x(),
+			//                colorSumMinMax.y(),
+			//                colorSumMinMax.z(),
+			//                0.0f
+			//        };
+			//        minSum[3] = material.getOpticalDensity();
+
+			color += colorSumMinMax;
+		}
+	}
+	else
+	{
+		color = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
+		std::cout << "SHADOW" << std::endl;
+	}
 
 #ifdef LOGGING
     std::cout << "Color" << std::endl;
@@ -629,14 +636,6 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
         hitpoint = hitPoint;
         faceId = i;
     }
-
-#ifdef DETAILTIMESTAMPING
-    end = std::chrono::steady_clock::now();
-    diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "Faces iteration: " << diff.count() << "us" << std::endl;
-    start = std::chrono::steady_clock::now();
-#endif
-
     return hasIntersected;
 }
 
@@ -663,31 +662,26 @@ void Flyscene::tracePixels(int threadId, int threads, Eigen::Vector3f &origin, v
     }
 }
 
-std::vector<Eigen::Vector3f> Flyscene::boundingVectors() {
-    int num_verts = mesh.getNumberOfVertices();
+bool Flyscene::checkIfShadow(const Eigen::Vector3f point) {
 
-    const Eigen::Vector3f &firstVertex = precomputedData.vertices[0];
-    Eigen::Vector3f vmin = {
-            firstVertex.x(),
-            firstVertex.y(),
-            firstVertex.z()
-    };
-
-    Eigen::Vector3f vmax = {
-            firstVertex.x(),
-            firstVertex.y(),
-            firstVertex.z()
-    };
-    for (int i = 0; i < num_verts; ++i) {
-        const Eigen::Vector3f &vertex = precomputedData.vertices[i];
-        vmin(0) = min(vmin.x(), vertex.x());
-        vmax(0) = max(vmax.x(), vertex.x());
-
-        vmin(1) = min(vmin.y(), vertex.y());
-        vmax(1) = max(vmax.y(), vertex.y());
-
-        vmin(2) = min(vmin.z(), vertex.z());
-        vmax(2) = max(vmax.z(), vertex.z());
-    }
-    return {vmin, vmax};
+	Eigen::Vector3f reflection;
+	Eigen::Vector3f refraction;
+	Eigen::Vector3f origin;
+	Eigen::Vector3f direction;
+	for (int n = 0; n < lights.size(); n++) {
+	Eigen::Vector3f hitPoint;
+	int faceId;
+		origin = lights[n];
+		direction = (point - origin).normalized();
+		doesIntersect(origin, direction, faceId, hitPoint, reflection, refraction);
+		Eigen::Vector3f diff = hitPoint - point;
+		if (diff[0] < 0.000001f && diff[1] < 0.000001f && diff[2] < 0.000001f)
+		{
+			//std::cout << "blah blah" << std::endl;
+			return false;
+		}
+		
+	}
+	//std::cout << "true" << std::endl;
+	return true;
 }

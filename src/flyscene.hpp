@@ -92,7 +92,8 @@ public:
         vector<vector<Eigen::Vector3f>> &pixel_data,
         Eigen::Vector2i &image_size);
 
-    void precomputeData();
+	bool checkIfShadow(const Eigen::Vector3f point);
+	bool intersect(const Eigen::Vector3f& origin, const Eigen::Vector3f& destination);
 
 private:
     PrecomputedData precomputedData;

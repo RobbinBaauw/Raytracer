@@ -1,0 +1,100 @@
+#version 430
+layout(local_size_x = 1, local_size_y = 1) in;
+
+// Input
+uniform vec3 origin;
+
+// The pixel offset in our current calculation
+uniform int offset;
+
+// See ssbos.hpp
+struct Face {
+    vec4 v0;
+    vec4 v1;
+    vec4 v2;
+};
+
+// See ssbos.hpp
+layout(std430, binding = 1) readonly buffer facesBuff {
+    Face[] faces;
+};
+
+// See ssbos.hpp
+layout(std430, binding = 2) readonly buffer raysBuff {
+    vec4[] rays;
+};
+
+// Output, see ssbos.hpp
+layout(binding = 0) buffer pixelsBuff {
+    vec4 pixels[];
+};
+
+const float EPSILON = 0.0000001;
+
+// https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
+// TODO: figure out how this actually works :thonk:
+bool doesRayIntersect(vec3 currentRay) {
+
+    float currentMaxDepth = 3.402823466e+38;
+    bool hasIntersected = false;
+
+    for (int i = 0; i < faces.length(); i++)  {
+        const Face currentFaceVertices = faces[i];
+
+        const vec3 v0 = currentFaceVertices.v0.xyz;
+        const vec3 v1 = currentFaceVertices.v1.xyz;
+        const vec3 v2 = currentFaceVertices.v2.xyz;
+
+        const vec3 edge1 = v1 - v0;
+        const vec3 edge2 = v2 - v0;
+
+        const vec3 rayDirection = normalize(currentRay - origin);
+
+        const vec3 h = cross(rayDirection, edge2);
+        const float a = dot(edge1, h);
+
+        if (a > -EPSILON && a < EPSILON) {
+            continue;
+        }
+
+        const float f = 1.0 / a;
+        const vec3 s = origin - v0;
+        const float u = f * dot(s, h);
+
+        if (u < 0.0 || u > 1.0) {
+            continue;
+        }
+
+        const vec3 q = cross(s, edge1);
+        const float v = f * dot(rayDirection, q);
+
+        if (v < 0.0 || u + v > 1.0) {
+            continue;
+        }
+
+        const float t = f * dot(edge2, q);
+
+        if (t > EPSILON && t < 1 / EPSILON && t < currentMaxDepth) {
+            currentMaxDepth = t;
+            hasIntersected = true;
+        }
+    }
+
+    return hasIntersected;
+}
+
+void main(void) {
+    // The current pixel we are calculating (note that this is a value from 0-GPUCORES)
+    int pixelCoords = int(gl_GlobalInvocationID.x);
+
+    // The index of the current pixel in the buffer or rays
+    int currentRaysIndex = offset + pixelCoords;
+    vec3 currentRay = rays[currentRaysIndex].xyz;
+
+    // If it intersect, white, else black
+    if (doesRayIntersect(currentRay)) {
+        pixels[pixelCoords] = vec4(1.0, 1.0, 1.0, 1.0);
+    } else {
+        pixels[pixelCoords] = vec4(0.0, 0.0, 0.0, 1.0);
+    }
+}
