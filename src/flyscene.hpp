@@ -93,7 +93,11 @@ public:
         Eigen::Vector2i &image_size);
 
 	bool checkIfShadow(const Eigen::Vector3f point);
-	bool intersect(const Eigen::Vector3f& origin, const Eigen::Vector3f& destination);
+	
+	/**
+	* @brief function which calculates soft shadows.
+	*/
+	Eigen::Vector3f getLightIntensity(const Tucano::Face face, const Eigen::Vector3f& hitPosition);
 
 private:
     PrecomputedData precomputedData;

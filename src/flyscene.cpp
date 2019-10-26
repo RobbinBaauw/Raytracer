@@ -403,7 +403,7 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
 
     Tucano::Material::Mtl &material = materials[materialIndex];
 
-    const Eigen::Vector3f lightIntensity = Eigen::Vector3f(1, 1, 1);
+    Eigen::Vector3f lightIntensity = getLightIntensity(face, hitPosition);
 
     // Interpolating the normal
     const auto &currVertexIds = precomputedData.faceVertexIds[faceIndex];
@@ -425,8 +425,8 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
     faceNormal = faceNormal / faceArea;
     faceNormal.normalize();
 
-	if (!(checkIfShadow(hitPosition)))
-	{
+	//if (!(checkIfShadow(hitPosition)))
+	//{
 		// Iterate over all the present lights
 		for (const Eigen::Vector3f& lightPosition : lights) {
 
@@ -459,12 +459,12 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
 
 			color += colorSumMinMax;
 		}
-	}
-	else
-	{
-		color = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
-		std::cout << "SHADOW" << std::endl;
-	}
+	//}
+	//else
+	//{
+		//color = Eigen::Vector3f(0,0,0);
+		//std::cout << "SHADOW" << std::endl;
+	//}
 
 #ifdef LOGGING
     std::cout << "Color" << std::endl;
@@ -684,4 +684,65 @@ bool Flyscene::checkIfShadow(const Eigen::Vector3f point) {
 	}
 	//std::cout << "true" << std::endl;
 	return true;
+}
+
+Eigen::Vector3f Flyscene::getLightIntensity(const Tucano::Face face, const Eigen::Vector3f& hitPosition) {
+	if (!checkIfShadow(hitPosition)) return Eigen::Vector3f(1, 1, 1);
+	// Get random samples from a light source, per light source. Average all and use this as lightIntensity value.
+
+	/**If a light has any influence on the face, calculates it's influence by taking x random samples nearby the light source,
+	*checks if it intersects with the face and takes the total average.
+	*/
+	auto currentVertexIds = face.vertex_ids;
+	assert(currentVertexIds.size() == 3);
+
+	// All the necessary constants to calculate the soft shadows
+	const int range = 15;
+	const float selectedAmount = 1024;
+
+	// Create the vertices
+	const auto v0 = (mesh.getShapeMatrix() * mesh.getVertex(currentVertexIds[0])).head(3);
+	const auto v1 = (mesh.getShapeMatrix() * mesh.getVertex(currentVertexIds[1])).head(3);
+	const auto v2 = (mesh.getShapeMatrix() * mesh.getVertex(currentVertexIds[2])).head(3);
+	float amount = 0;
+	float count = 0;
+
+	Eigen::Vector3f hitPoint;
+	int faceId;
+	Eigen::Vector3f reflection;
+	Eigen::Vector3f refraction;
+
+	// For each light
+	for (int i = 0; i < lights.size(); i++) {
+		float tempAmount = 0;
+
+			// Get x random vertices around the light center
+			for (int n = 0; n < selectedAmount; n++) {
+				int lightRange0 = rand() % ((2 * range) + 1) + (-range);
+				int lightRange1 = rand() % ((2 * range) + 1) + (-range);
+				int lightRange2 = rand() % ((2 * range) + 1) + (-range);
+
+				Eigen::Vector3f currLight = lights[i] + Eigen::Vector3f(lightRange0, lightRange1, lightRange2);
+				/**If an intersection with the face takes place, add 1 to the amount*/
+				if (doesIntersect(v0, currLight, faceId, hitPoint, reflection, refraction)) tempAmount++;
+				if (doesIntersect(v1, currLight, faceId, hitPoint, reflection, refraction)) tempAmount++;
+				if (doesIntersect(v2, currLight, faceId, hitPoint, reflection, refraction)) tempAmount++;
+
+			}
+		//std::cout << "Amount:" << tempAmount <<  "Calculated:" << tempAmount / selectedAmount << std::endl;
+
+		/*Add up all the averages from all the lights, and only increase the count if at least one point has
+		*intersected with the face
+		*/
+		amount += tempAmount / selectedAmount;
+		if (tempAmount > 0) count++;
+	}
+	// Calculate the light intensity and return
+	float intensity = 0;
+	if (count > 0) intensity = amount / count;
+	float maximum = 1;
+	intensity = intensity;
+	intensity = min(intensity, maximum);
+	std::cout << std::to_string(intensity) << std::endl;
+	return Eigen::Vector3f(intensity, intensity, intensity);
 }
