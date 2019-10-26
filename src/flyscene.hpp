@@ -86,7 +86,8 @@ public:
         Eigen::Vector3f &reflection, Eigen::Vector3f &refraction
     );
 
-    void tracePixels(vector<Eigen::Vector2f> pixels,
+    void tracePixels(int threadId,
+        int threads,
         Eigen::Vector3f &origin,
         vector<vector<Eigen::Vector3f>> &pixel_data,
         Eigen::Vector2i &image_size);

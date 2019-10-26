@@ -5,11 +5,11 @@
 #include <Eigen/Eigen>
 
 struct PrecomputedData {
-    std::vector<Eigen::Vector3f> vertices;
-    std::vector<Eigen::Vector3f> normals;
+    Eigen::Vector3f * vertices;
+    Eigen::Vector3f * normals;
 
-    std::vector<Eigen::Vector3f> faceNormals;
-    std::vector<std::vector<GLuint>> faceVertexIds;
+    Eigen::Vector3f * faceNormals;
+    std::tuple<int, int, int> * faceVertexIds;
 
     Eigen::Affine3f shapeModelMatrix;
 };

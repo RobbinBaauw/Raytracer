@@ -104,9 +104,9 @@ public:
         float weight = 0;
         for (auto &it : faceIndices) {
             const auto vertexIds = precomputedData.faceVertexIds[it];
-            sum += precomputedData.vertices[vertexIds[0]](sideIndex) +
-                    precomputedData.vertices[vertexIds[1]](sideIndex) +
-                    precomputedData.vertices[vertexIds[2]](sideIndex);
+            sum += precomputedData.vertices[get<0>(vertexIds)](sideIndex) +
+                    precomputedData.vertices[get<1>(vertexIds)](sideIndex) +
+                    precomputedData.vertices[get<2>(vertexIds)](sideIndex);
 
             weight += 3;
         }
@@ -133,9 +133,9 @@ public:
         for (auto &it : faceIndices) {
             const auto vertexIds = precomputedData.faceVertexIds[it];
 
-            float first = precomputedData.vertices[vertexIds[0]](sideIndex);
-            float sec = precomputedData.vertices[vertexIds[1]](sideIndex);
-            float third = precomputedData.vertices[vertexIds[2]](sideIndex);
+            float first = precomputedData.vertices[get<0>(vertexIds)](sideIndex);
+            float sec = precomputedData.vertices[get<1>(vertexIds)](sideIndex);
+            float third = precomputedData.vertices[get<2>(vertexIds)](sideIndex);
 
             if (first > avg && sec > avg && third > avg) {
                 upperBox.addFaceIndex(it);

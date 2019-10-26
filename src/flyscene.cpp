@@ -6,6 +6,7 @@
 #include "boundingBox.h"
 
 #define TIMESTAMPING
+//#define DETAILTIMESTAMPING
 //#define LOGGING
 
 const int MAXRECURSION = 5;
@@ -85,11 +86,11 @@ void Flyscene::precomputeData() {
 
     precomputedData.shapeModelMatrix = mesh.getShapeModelMatrix();
 
-    precomputedData.normals = vector<Eigen::Vector3f>(mesh.getNumberOfVertices());
-    precomputedData.vertices = vector<Eigen::Vector3f>(mesh.getNumberOfVertices());
+    precomputedData.normals = new Eigen::Vector3f[mesh.getNumberOfVertices()];
+    precomputedData.vertices = new Eigen::Vector3f[mesh.getNumberOfVertices()];
 
-    precomputedData.faceNormals = vector<Eigen::Vector3f>(mesh.getNumberOfFaces());
-    precomputedData.faceVertexIds = vector<vector<GLuint>>(mesh.getNumberOfFaces());
+    precomputedData.faceNormals = new Eigen::Vector3f[mesh.getNumberOfFaces()];
+    precomputedData.faceVertexIds = new std::tuple<int, int, int>[mesh.getNumberOfFaces()];
 
     auto nrOfFaces = mesh.getNumberOfFaces();
     for (int i = 0; i < nrOfFaces; i++) {
@@ -98,7 +99,11 @@ void Flyscene::precomputeData() {
         const auto currVertexIds = currFace.vertex_ids;
 
         precomputedData.faceNormals[i] = currFace.normal;
-        precomputedData.faceVertexIds[i] = currVertexIds;
+        precomputedData.faceVertexIds[i] = {
+                currVertexIds[0],
+                currVertexIds[1],
+                currVertexIds[2]
+        };
 
         // v0
         const auto v0Id = currVertexIds[0];
@@ -283,22 +288,13 @@ void Flyscene::raytraceScene(int width, int height) {
     // origin of the ray is always the camera center
     Eigen::Vector3f origin = flycamera.getCenter();
 
-//     const auto threadCount = thread::hardware_concurrency();
-    const auto threadCount = 1;
+     const auto threadCount = thread::hardware_concurrency();
+//    const auto threadCount = 1;
 
     vector<thread> threads;
 
-    auto startingY = 0;
     for (int threadIndex = 0; threadIndex < threadCount; threadIndex++) {
-        vector<Eigen::Vector2f> myPixels;
-        for (int y = 0; y < ySize; y++) {
-            for (int x = 0; x < xSize; x++) {
-                if ((y * xSize + x) % threadCount == threadIndex) {
-                    myPixels.emplace_back(x, y);
-                }
-            }
-        }
-        threads.emplace_back(&Flyscene::tracePixels, this, myPixels, std::ref(origin), std::ref(pixel_data), std::ref(image_size)); // Requires std::ref
+        threads.emplace_back(&Flyscene::tracePixels, this, threadIndex, threadCount, std::ref(origin), std::ref(pixel_data), std::ref(image_size)); // Requires std::ref
     }
 
 #ifdef TIMESTAMPING
@@ -415,7 +411,7 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
     // Get direction of ray
     const auto direction = (dest - origin).normalized();
 
-#ifdef TIMESTAMPING
+#ifdef DETAILTIMESTAMPING
     std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
     std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
     std::chrono::time_point<std::chrono::steady_clock> end;
@@ -424,7 +420,7 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
 
     bool b = doesIntersect(origin, direction, faceId, hitPoint, reflection, refraction);
 
-#ifdef TIMESTAMPING
+#ifdef DETAILTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     std::cout << "Intersection check: " << diff.count() << "us" << std::endl;
@@ -434,7 +430,7 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
     if (b) {
         const Eigen::Vector3f localShading = shadeOffFace(faceId, origin, hitPoint);
 
-#ifdef TIMESTAMPING
+#ifdef DETAILTIMESTAMPING
         end = std::chrono::steady_clock::now();
         diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         std::cout << "Shading: " << diff.count() << "us" << std::endl;
@@ -453,7 +449,7 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
             Tucano::Material::Mtl material = materials[materialIndex];
 
             const auto &specular = material.getSpecular();
-            float EPSILON = 0.00001f;
+            float EPSILON = 0.4f;
             if (specular.x() > EPSILON || specular.y() > EPSILON || specular.z() > EPSILON) {
 
                 // Reflection
@@ -471,17 +467,17 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
                 refraction.normalize();
                 Eigen::Vector3f refractionDirection = hitPoint + refraction;
 
-                const Eigen::Vector3f refractionShading = traceRay(hitPoint, refractionDirection, recursionDepth + 1);
-                const Eigen::Vector3f weightedRefractionShading = {
-                refractionShading.x() * (1 - specular.x()),
-                refractionShading.y() * (1 - specular.y()),
-                refractionShading.z() * (1 - specular.z())
-                };
+//                const Eigen::Vector3f refractionShading = traceRay(hitPoint, refractionDirection, recursionDepth + 1);
+//                const Eigen::Vector3f weightedRefractionShading = {
+//                        refractionShading.x() * specular.x(),
+//                        refractionShading.y() * specular.y(),
+//                        refractionShading.z() * specular.z()
+//                };
 
                 return {
-                        localShading.x() + weightedReflectionShading.x() + weightedRefractionShading.x(),
-                        localShading.y() + weightedReflectionShading.y() + weightedRefractionShading.y(),
-                        localShading.z() + weightedReflectionShading.z() + weightedRefractionShading.z()
+                        localShading.x() + weightedReflectionShading.x(), // + weightedRefractionShading.x(),
+                        localShading.y() + weightedReflectionShading.y(), // + weightedRefractionShading.y(),
+                        localShading.z() + weightedReflectionShading.z(), // + weightedRefractionShading.z()
                 };
             }
         }
@@ -510,7 +506,7 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
                              int &faceId, Eigen::Vector3f &hitpoint,
                              Eigen::Vector3f &reflection, Eigen::Vector3f &refraction) {
 
-#ifdef TIMESTAMPING
+#ifdef DETAILTIMESTAMPING
     std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
     std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
     std::chrono::time_point<std::chrono::steady_clock> end;
@@ -520,7 +516,7 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
     vector<int> intersectingFaces;
     boxMain.intersectingBoxes(origin, direction, intersectingFaces);
 
-#ifdef TIMESTAMPING
+#ifdef DETAILTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     std::cout << "DS check: " << diff.count() << "us, " << intersectingFaces.size() << " faces left" << std::endl;
@@ -532,17 +528,15 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
 
     for (auto& i : intersectingFaces) {
         // Retrieve the current face and its vertex ids
-        const auto currVertexIds = precomputedData.faceVertexIds[i];
-
-        assert(currVertexIds.size() == 3);
-
+        const auto& currVertexIds = precomputedData.faceVertexIds[i];
+        
         // Create the vertices
-        const auto v0 = precomputedData.vertices[currVertexIds[0]];
-        const auto v1 = precomputedData.vertices[currVertexIds[1]];
-        const auto v2 = precomputedData.vertices[currVertexIds[2]];
+        const auto& v0 = precomputedData.vertices[get<0>(currVertexIds)];
+        const auto& v1 = precomputedData.vertices[get<1>(currVertexIds)];
+        const auto& v2 = precomputedData.vertices[get<2>(currVertexIds)];
 
         // Get normal (implemented by Tucano)
-        const auto normal = precomputedData.faceNormals[i];
+        const auto& normal = precomputedData.faceNormals[i];
 
         // Get distance from triangle to origin (see slide 27)
         const auto originDistance = normal.dot(v0);
@@ -578,7 +572,7 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
         }
     }
 
-#ifdef TIMESTAMPING
+#ifdef DETAILTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     std::cout << "Faces iteration: " << diff.count() << "us" << std::endl;
@@ -588,22 +582,26 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
     return hasIntersected;
 }
 
-void Flyscene::tracePixels(vector<Eigen::Vector2f> pixels, Eigen::Vector3f &origin, vector<vector<Eigen::Vector3f>> &pixel_data,
+void Flyscene::tracePixels(int threadId, int threads, Eigen::Vector3f &origin, vector<vector<Eigen::Vector3f>> &pixel_data,
                           Eigen::Vector2i &image_size) {
 
-    // for every pixel shoot a ray from the origin through the pixel coords
-    for (auto& pixel : pixels) {
-        // create a ray from the camera passing through the pixel (i,j)
-        Eigen::Vector3f screen_coords = flycamera.screenToWorld(pixel);
+    int xSize = image_size[0];
+    int ySize = image_size[1];
+
+    for (int x = 0; x < xSize; x++) {
+        for (int y = threadId; y < ySize; y += threads) {
+            // create a ray from the camera passing through the pixel (i,j)
+            Eigen::Vector3f screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
 
 #ifdef LOGGING
-//            std::cout << "Tracing XY (" << x << ", " << y << ")" << std::endl;
+            //            std::cout << "Tracing XY (" << x << ", " << y << ")" << std::endl;
 #endif
 
-        // launch raytracing for the given ray and write result to pixel data
-        const Eigen::Vector3f &colorOut = traceRay(origin, screen_coords, 0);
+            // launch raytracing for the given ray and write result to pixel data
+            const Eigen::Vector3f &colorOut = traceRay(origin, screen_coords, 0);
 
-        pixel_data[pixel.y()][pixel.x()] = colorOut;
+            pixel_data[y][x] = colorOut;
+        }
     }
 }
 
