@@ -229,9 +229,9 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
     const auto currVertexIds = face.vertex_ids;
 
     // TODO add drawing of why this way of calculating is logical
-    const Eigen::Vector3f v0 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[0])).head(3);
-    const Eigen::Vector3f v1 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[1])).head(3);
-    const Eigen::Vector3f v2 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
+    const Eigen::Vector3f v0 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[0])).head(3);
+    const Eigen::Vector3f v1 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[1])).head(3);
+    const Eigen::Vector3f v2 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
 
     const auto v0Normal = mesh.getNormal(currVertexIds[0]).normalized();
     const auto v1Normal = mesh.getNormal(currVertexIds[1]).normalized();
@@ -257,9 +257,6 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
         float cos1 = fmaxf(0, lightDirection.dot(faceNormal));
         const Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
 
-        std::cout << "Diffuse in: " << material.getDiffuse() << std::endl;
-        std::cout << "Diffuse out: " << diffuse << std::endl;
-
         // Specular term
         const Eigen::Vector3f eyeDirection = (origin - hitPosition).normalized();
         const Eigen::Vector3f reflectedLight = (-lightDirection + 2.f * lightDirection.dot(faceNormal) * faceNormal).normalized();
@@ -267,16 +264,11 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
         float cos2 = fmax(0, reflectedLight.dot(eyeDirection));
         Eigen::Vector3f specular = lightIntensity.cwiseProduct(material.getSpecular()) * (pow(cos2, material.getShininess()));
 
-        std::cout << "Specular in: " << material.getSpecular() << std::endl;
-        std::cout << "Specular out: " << specular << std::endl;
-
         const auto colorSum = diffuse + specular + ambient;
         Eigen::Vector3f minSum = colorSum.cwiseMax(0.0).cwiseMin(1.0);
         minSum[3] = material.getOpticalDensity();
 
         color += minSum;
-
-        std::cout << "Light color out: " << color << std::endl;
     }
 
     return color;
@@ -297,8 +289,6 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
 
     if (doesIntersect(origin, direction, faceId, hitPoint, reflection, refraction)) {
         const Eigen::Vector3f localShading = shadeOffFace(faceId, origin, hitPoint);
-
-//        std::cout << "Intersection, depth = " << recursionDepth << std::endl;
 
         if (recursionDepth < MAXRECURSION) {
             Tucano::Face face = mesh.getFace(faceId);
@@ -348,8 +338,6 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
         return localShading;
     } else {
 
-        std::cout << "No intersection, depth = " << recursionDepth << std::endl;
-
         // Background color
         if (recursionDepth == 0) {
             return {
@@ -383,9 +371,9 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
         assert(currVertexIds.size() == 3);
 
         // Create the vertices
-        const auto v0 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[0])).head(3);
-        const auto v1 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[1])).head(3);
-        const auto v2 = (mesh.getShapeMatrix() * mesh.getModelMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
+        const auto v0 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[0])).head(3);
+        const auto v1 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[1])).head(3);
+        const auto v2 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
 
         // Get normal (implemented by Tucano)
         const auto normal = currFace.normal;
@@ -436,7 +424,7 @@ void Flyscene::traceFromY(int startY, int amountY, Eigen::Vector3f &origin, vect
 
             // launch raytracing for the given ray and write result to pixel data
             const Eigen::Vector3f &colorOut = traceRay(origin, screen_coords, 0);
-            std::cout << "Color out: " << colorOut.x() << ", " << colorOut.y() << ", " << colorOut.z() << std::endl;
+
             pixel_data[y][x] = colorOut;
         }
     }
