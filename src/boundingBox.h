@@ -59,6 +59,10 @@ public:
         faceIndices.push_back(faceIndex);
     }
 
+    std::vector<boundingBox> getChildren() {
+        return children;
+    }
+
     /**
      * @brief Stores the children boxes of this node.
      * @param box on the smaller side
@@ -76,11 +80,6 @@ public:
 
     void setVmaxIndex(float max, int index) {
         vmax(index) = max;
-    }
-
-    //Return the list of faceIndices of the faces contained by the boundingBox
-    std::vector<int> getFaceIndices() {
-        return faceIndices;
     }
 
     /**
@@ -163,10 +162,6 @@ public:
         }
     }
 
-    std::vector<boundingBox> getChildren() {
-        return children;
-    }
-
     /*
      * Returns the size of the x-y-z axis of the cube.
      * @param shapeModelMatrix the modelMatrix of the mesh, to transform the boundingBox to the actual size
@@ -199,9 +194,9 @@ public:
                 Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
                 bounding.resetModelMatrix();
                 bounding.modelMatrix()->translate(shapeModelMatrix * ((vmax + vmin) / 2));
-                float r = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
-                float g = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
-                float b = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
+                auto r = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
+                auto g = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
+                auto b = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
                 bounding.setColor(Eigen::Vector4f(r, g, b, 0.1));
                 bounding.render(flycamera, scene_light);
 
@@ -275,14 +270,13 @@ public:
     * @param intersectingFaces, an empty vector list of face indices.
     */
     void intersectingBoxes(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, std::vector<int> &intersectingFaces, const Eigen::Affine3f &shapeModelMatrix) {
-        if (getChildren().empty()) {
+        if (children.empty()) {
             if (boxIntersection(origin, direction, shapeModelMatrix)) {
                 hitByRay = true;
-
-                for (int k = 0; k < getFaceIndices().size(); ++k) {
-                    intersectingFaces.push_back(getFaceIndices().at(k));
-                }
-            } else hitByRay = false;
+                intersectingFaces.insert(intersectingFaces.end(), faceIndices.begin(), faceIndices.end());
+            } else {
+                hitByRay = false;
+            }
             return;
         }
 

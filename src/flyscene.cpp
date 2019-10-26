@@ -39,8 +39,7 @@ void Flyscene::initialize(int width, int height) {
     camerarep.resetModelMatrix();
     camerarep.setModelMatrix(flycamera.getViewMatrix().inverse());
 
-    // the debug ray is a cylinder, set the radius and length of the cylinder
-    ray.setSize(0.005, 10.0);
+    precomputeData();
 
 	std::vector<Eigen::Vector3f> boundaries = boundingVectors();
 	boxMain = boundingBox(boundaries[0], boundaries[1]);
@@ -51,16 +50,19 @@ void Flyscene::initialize(int width, int height) {
 	}
 
 	boxMain.splitBox(std::ref(mesh));
-	std::cout << "Node count is: " << boundingBox::getNode() << std::endl;
-	std::cout << "Leaf count is: " << boundingBox::getLeaf() << std::endl;
-	
-	std::vector<boundingBox> currChildren = boxMain.getChildren();
-	int depth = 0;
-	while (!currChildren.empty()) {
-		++depth;
-		currChildren = currChildren[0].getChildren();
-	}
-	std::cout << "Depth of the lefmost branch is " << depth << std::endl;
+
+#ifdef LOGGING
+    std::cout << "Node count is: " << boundingBox::getNode() << std::endl;
+    std::cout << "Leaf count is: " << boundingBox::getLeaf() << std::endl;
+
+    std::vector<boundingBox> currChildren = boxMain.getChildren();
+    int depth = 0;
+    while (!currChildren.empty()) {
+        ++depth;
+        currChildren = currChildren[0].getChildren();
+    }
+    std::cout << "Depth of the lefmost branch is " << depth << std::endl;
+#endif
 
     // craete a first debug ray pointing at the center of the screen
     createDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
@@ -79,7 +81,46 @@ void Flyscene::initialize(int width, int height) {
     // }
 }
 
+void Flyscene::precomputeData() {
 
+    precomputedData.shapeModelMatrix = mesh.getShapeModelMatrix();
+    precomputedData.normals = vector<Eigen::Vector3f>(mesh.getNumberOfVertices());
+    precomputedData.vertices = vector<Eigen::Vector3f>(mesh.getNumberOfVertices());
+    precomputedData.faceNormals = vector<Eigen::Vector3f>(mesh.getNumberOfFaces());
+
+    auto nrOfFaces = mesh.getNumberOfFaces();
+    for (int i = 0; i < nrOfFaces; i++) {
+
+        const auto currFace = mesh.getFace(i);
+        const auto currVertexIds = currFace.vertex_ids;
+
+        precomputedData.faceNormals[i] = currFace.normal;
+
+        // v0
+        const auto v0Id = currVertexIds[0];
+        const Eigen::Vector3f v0 = (precomputedData.shapeModelMatrix * mesh.getVertex(v0Id)).head(3);
+        precomputedData.vertices[v0Id] = v0;
+
+        const auto v0Normal = mesh.getNormal(v0Id).normalized();
+        precomputedData.normals[v0Id] = v0Normal;
+
+        // v1
+        const auto v1Id = currVertexIds[1];
+        const Eigen::Vector3f v1 = (precomputedData.shapeModelMatrix * mesh.getVertex(v1Id)).head(3);
+        precomputedData.vertices[v1Id] = v1;
+
+        const auto v1Normal = mesh.getNormal(v1Id).normalized();
+        precomputedData.normals[v1Id] = v0Normal;
+
+        // v2
+        const auto v2Id = currVertexIds[2];
+        const Eigen::Vector3f v2 = (precomputedData.shapeModelMatrix * mesh.getVertex(v2Id)).head(3);
+        precomputedData.vertices[v2Id] = v2;
+
+        const auto v2Normal = mesh.getNormal(v2Id).normalized();
+        precomputedData.normals[v2Id] = v2Normal;
+    }
+}
 
 void Flyscene::paintGL() {
 
@@ -104,10 +145,10 @@ void Flyscene::paintGL() {
 
 
 	if (renderBoxBool) {
-		boxMain.renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), mesh.getShapeModelMatrix(), false);
+		boxMain.renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), precomputedData.shapeModelMatrix, false);
 	}
 	if (renderIntersectedBoxBool) {
-		boxMain.renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), mesh.getShapeModelMatrix(), true);
+		boxMain.renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), precomputedData.shapeModelMatrix, true);
 	}
 
 	/*Eigen::Vector3f shape = boxMain.getShape(mesh.getShapeModelMatrix());
@@ -134,14 +175,14 @@ void Flyscene::paintGL() {
 
 void Flyscene::paintGL(void) {
 
-    float dx = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ? 0.2f : 0.0f) -
-               (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ? 0.2f : 0.0f);
+    float dx = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ? 0.6f : 0.4f) -
+               (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ? 0.6f : 0.4f);
 
-    float dy = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS ? 0.2f : 0.0f) -
-               (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ? 0.2f : 0.0f);
+    float dy = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS ? 0.6f : 0.4f) -
+               (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ? 0.6f : 0.4f);
 
-    float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 0.2f : 0.0f) -
-               (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 0.2f : 0.0f);
+    float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 0.6f : 0.4f) -
+               (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 0.6f : 0.4f);
 
 	//This code only shows the leaf boundingBoxes when B is pressed.
 	renderBoxBool = false;
@@ -161,7 +202,7 @@ void Flyscene::startDebugRay(const Eigen::Vector2f& mouseCoords) {
 
 	std::vector<int> indices;
     const Eigen::Vector3f &origin = flycamera.getCenter();
-    boxMain.intersectingBoxes(origin, screen_pos, indices, mesh.getShapeModelMatrix());
+    boxMain.intersectingBoxes(origin, screen_pos, indices, precomputedData.shapeModelMatrix);
 
     // direction from camera center to click position
     Eigen::Vector3f dir = (screen_pos - origin).normalized();
@@ -237,8 +278,8 @@ void Flyscene::raytraceScene(int width, int height) {
     // origin of the ray is always the camera center
     Eigen::Vector3f origin = flycamera.getCenter();
 
-    const auto threadCount = thread::hardware_concurrency();
-//    const auto threadCount = 1;
+    // const auto threadCount = thread::hardware_concurrency();
+    const auto threadCount = 1;
     const auto ysPerThread = ceil((float) ySize / (float) threadCount); // the amount of y coordinates per thread, ceil. Meaning we start with this number and if it is divisble by the remaining threads we do -1
 
     vector<thread> threads;
@@ -294,13 +335,13 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
     const auto currVertexIds = face.vertex_ids;
 
     // TODO add drawing of why this way of calculating is logical
-    const Eigen::Vector3f v0 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[0])).head(3);
-    const Eigen::Vector3f v1 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[1])).head(3);
-    const Eigen::Vector3f v2 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
+    const Eigen::Vector3f v0 = precomputedData.vertices[currVertexIds[0]];
+    const Eigen::Vector3f v1 = precomputedData.vertices[currVertexIds[1]];
+    const Eigen::Vector3f v2 = precomputedData.vertices[currVertexIds[2]];
 
-    const auto v0Normal = mesh.getNormal(currVertexIds[0]).normalized();
-    const auto v1Normal = mesh.getNormal(currVertexIds[1]).normalized();
-    const auto v2Normal = mesh.getNormal(currVertexIds[2]).normalized();
+    const auto v0Normal = precomputedData.normals[currVertexIds[0]];
+    const auto v1Normal = precomputedData.normals[currVertexIds[1]];
+    const auto v2Normal = precomputedData.normals[currVertexIds[2]];
 
     const auto areaV1V2Hitpoint = (v1 - hitPosition).cross(v2 - hitPosition).norm() * 0.5;
     const auto areaV0V2Hitpoint = (v0 - hitPosition).cross(v2 - hitPosition).norm() * 0.5;
@@ -332,13 +373,13 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
         const auto colorSum = diffuse + specular + ambient;
         Eigen::Vector3f minSum = colorSum.cwiseMax(0.0).cwiseMin(1.0);
 
-#ifdef LOGGING
-        std::cout << "Color" << std::endl;
-        std::cout << minSum << std::endl;
-#endif
-
         color += minSum;
     }
+
+#ifdef LOGGING
+    std::cout << "Color" << std::endl;
+    std::cout << color << std::endl;
+#endif
 
     return color;
 }
@@ -429,7 +470,7 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
                              Eigen::Vector3f &reflection, Eigen::Vector3f &refraction) {
 
     vector<int> intersectingFaces;
-    boxMain.intersectingBoxes(origin, direction, intersectingFaces, mesh.getShapeModelMatrix());
+    boxMain.intersectingBoxes(origin, direction, intersectingFaces, precomputedData.shapeModelMatrix);
 
     bool hasIntersected = false;
     float currentMaxDepth = numeric_limits<float>::max();
@@ -442,12 +483,12 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
         assert(currVertexIds.size() == 3);
 
         // Create the vertices
-        const auto v0 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[0])).head(3);
-        const auto v1 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[1])).head(3);
-        const auto v2 = (mesh.getShapeModelMatrix() * mesh.getVertex(currVertexIds[2])).head(3);
+        const auto v0 = precomputedData.vertices[currVertexIds[0]];
+        const auto v1 = precomputedData.vertices[currVertexIds[1]];
+        const auto v2 = precomputedData.vertices[currVertexIds[2]];
 
         // Get normal (implemented by Tucano)
-        const auto normal = currFace.normal;
+        const auto normal = precomputedData.faceNormals[i];
 
         // Get distance from triangle to origin (see slide 27)
         const auto originDistance = normal.dot(v0);
@@ -494,7 +535,7 @@ void Flyscene::traceFromY(int startY, int amountY, Eigen::Vector3f &origin, vect
             Eigen::Vector3f screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
 
 #ifdef LOGGING
-            std::cout << "Tracing XY (" << x << ", " << y << ")" << std::endl;
+//            std::cout << "Tracing XY (" << x << ", " << y << ")" << std::endl;
 #endif
 
             // launch raytracing for the given ray and write result to pixel data

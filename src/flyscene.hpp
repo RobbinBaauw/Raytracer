@@ -18,6 +18,13 @@
 #include <tucano/utils/objimporter.hpp>
 #include "boundingBox.h"
 
+struct PrecomputedData {
+    vector<Eigen::Vector3f> vertices;
+    vector<Eigen::Vector3f> normals;
+    vector<Eigen::Vector3f> faceNormals;
+    Eigen::Affine3f shapeModelMatrix;
+};
+
 class Flyscene {
 
 public:
@@ -90,9 +97,13 @@ public:
         vector<vector<Eigen::Vector3f>> &pixel_data,
         Eigen::Vector2i &image_size);
 
+    void precomputeData();
+
 private:
-  // A simple phong shader for rendering meshes
-  Tucano::Effects::PhongMaterial phong;
+    PrecomputedData precomputedData;
+
+    // A simple phong shader for rendering meshes
+    Tucano::Effects::PhongMaterial phong;
 
   // A fly through camera
   Tucano::Flycamera flycamera;
