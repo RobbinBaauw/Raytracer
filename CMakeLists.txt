@@ -42,7 +42,7 @@ set(
         ${PROJECT_DIR}/flyscene.cpp
         ${PROJECT_DIR}/boundingBox.h
         #${PROJECT_DIR}/raytracing.cpp
-)
+        src/defs.h)
 
 # add all the source files for compilation (your files + tucano files)
 add_executable(

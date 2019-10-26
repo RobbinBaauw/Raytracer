@@ -49,7 +49,7 @@ void Flyscene::initialize(int width, int height) {
 		boxMain.addFaceIndex(i);
 	}
 
-	boxMain.splitBox(std::ref(mesh));
+	boxMain.splitBox(precomputedData);
 
 #ifdef LOGGING
     std::cout << "Node count is: " << boundingBox::getNode() << std::endl;
@@ -84,9 +84,12 @@ void Flyscene::initialize(int width, int height) {
 void Flyscene::precomputeData() {
 
     precomputedData.shapeModelMatrix = mesh.getShapeModelMatrix();
+
     precomputedData.normals = vector<Eigen::Vector3f>(mesh.getNumberOfVertices());
     precomputedData.vertices = vector<Eigen::Vector3f>(mesh.getNumberOfVertices());
+
     precomputedData.faceNormals = vector<Eigen::Vector3f>(mesh.getNumberOfFaces());
+    precomputedData.faceVertexIds = vector<vector<GLuint>>(mesh.getNumberOfFaces());
 
     auto nrOfFaces = mesh.getNumberOfFaces();
     for (int i = 0; i < nrOfFaces; i++) {
@@ -95,6 +98,7 @@ void Flyscene::precomputeData() {
         const auto currVertexIds = currFace.vertex_ids;
 
         precomputedData.faceNormals[i] = currFace.normal;
+        precomputedData.faceVertexIds[i] = currVertexIds;
 
         // v0
         const auto v0Id = currVertexIds[0];
@@ -145,10 +149,10 @@ void Flyscene::paintGL() {
 
 
 	if (renderBoxBool) {
-		boxMain.renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), precomputedData.shapeModelMatrix, false);
+		boxMain.renderLeafBoxes(flycamera, scene_light, false);
 	}
 	if (renderIntersectedBoxBool) {
-		boxMain.renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), precomputedData.shapeModelMatrix, true);
+		boxMain.renderLeafBoxes(flycamera, scene_light, true);
 	}
 
 	/*Eigen::Vector3f shape = boxMain.getShape(mesh.getShapeModelMatrix());
@@ -202,7 +206,7 @@ void Flyscene::startDebugRay(const Eigen::Vector2f& mouseCoords) {
 
 	std::vector<int> indices;
     const Eigen::Vector3f &origin = flycamera.getCenter();
-    boxMain.intersectingBoxes(origin, screen_pos, indices, precomputedData.shapeModelMatrix);
+    boxMain.intersectingBoxes(origin, screen_pos, indices);
 
     // direction from camera center to click position
     Eigen::Vector3f dir = (screen_pos - origin).normalized();
@@ -278,8 +282,8 @@ void Flyscene::raytraceScene(int width, int height) {
     // origin of the ray is always the camera center
     Eigen::Vector3f origin = flycamera.getCenter();
 
-    // const auto threadCount = thread::hardware_concurrency();
-    const auto threadCount = 1;
+     const auto threadCount = thread::hardware_concurrency();
+//    const auto threadCount = 1;
     const auto ysPerThread = ceil((float) ySize / (float) threadCount); // the amount of y coordinates per thread, ceil. Meaning we start with this number and if it is divisble by the remaining threads we do -1
 
     vector<thread> threads;
@@ -291,7 +295,7 @@ void Flyscene::raytraceScene(int width, int height) {
 
         const int currentYs = ysToDo % threadsLeft == 0 ? ysToDo / threadsLeft : ysPerThread;
 
-        threads.emplace_back(&Flyscene::traceFromY, this, startingY, currentYs, std::ref(origin), std::ref(pixel_data), std::ref(image_size));
+        threads.emplace_back(&Flyscene::traceFromY, this, startingY, currentYs, std::ref(origin), std::ref(pixel_data), std::ref(image_size)); // Requires std::ref
 
         startingY += currentYs;
     }
@@ -303,11 +307,17 @@ void Flyscene::raytraceScene(int width, int height) {
 #ifdef TIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::cout << "Writing file: " << diff.count() << "ms" << std::endl;
+    std::cout << "Raytracing: " << diff.count() << "ms" << std::endl;
 #endif
 
     // write the ray tracing result to a PPM image
     Tucano::ImageImporter::writePPMImage("result.ppm", pixel_data);
+
+#ifdef TIMESTAMPING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Writing file: " << diff.count() << "ms" << std::endl;
+#endif
 
 #ifdef TIMESTAMPING
     end = std::chrono::steady_clock::now();
@@ -470,7 +480,7 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
                              Eigen::Vector3f &reflection, Eigen::Vector3f &refraction) {
 
     vector<int> intersectingFaces;
-    boxMain.intersectingBoxes(origin, direction, intersectingFaces, precomputedData.shapeModelMatrix);
+    boxMain.intersectingBoxes(origin, direction, intersectingFaces);
 
     bool hasIntersected = false;
     float currentMaxDepth = numeric_limits<float>::max();
@@ -496,21 +506,18 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
         // Compute tHit (see slide 10)
         const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
 
+        if (tHit < 0.00001f) {
+            continue;
+        }
+
         // Compute hit point (see slide 10)
         const auto hitPoint = origin + tHit * direction;
 
-        // We want to solve p = v2 + a * (v0 - v2) + b * (v1 - v2), see slide 28
-        // This we can do by getting the linear combination for (p - v2), thus giving us a and b
-        // So we solve Ax = b where A exists of (v0 - v2), (v1, v2) and b exists of (p - v2)
-        Eigen::Matrix<float, 3, 2> A;
-        A << (v0 - v2), (v1 - v2);
+        const auto a = (v1 - v0).cross(hitPoint - v0).dot(normal);
+        const auto b = (v2 - v1).cross(hitPoint - v1).dot(normal);
+        const auto c = (v0 - v2).cross(hitPoint - v2).dot(normal);
 
-        const auto linearCombination = A.colPivHouseholderQr().solve(hitPoint - v2);
-        const auto a = linearCombination[0];
-        const auto b = linearCombination[1];
-
-        auto noHit = a < 0 || b < 0 || a + b > 1 || tHit < 0.00001f;
-        if (!noHit && tHit < currentMaxDepth) {
+        if (a > 0 && b > 0 && c > 0 && tHit < currentMaxDepth) {
             hasIntersected = true;
             currentMaxDepth = tHit;
 
@@ -548,10 +555,19 @@ void Flyscene::traceFromY(int startY, int amountY, Eigen::Vector3f &origin, vect
 
 std::vector<Eigen::Vector3f> Flyscene::boundingVectors() {
 	int num_verts = mesh.getNumberOfVertices();
-	Eigen::Vector3f vmin = { mesh.getVertex(0).x(), mesh.getVertex(0).y(), mesh.getVertex(0).z()};
-	Eigen::Vector3f vmax = { mesh.getVertex(0).x(), mesh.getVertex(0).y(), mesh.getVertex(0).z() };
+	Eigen::Vector3f vmin = {
+            precomputedData.vertices[0].x(),
+            precomputedData.vertices[0].y(),
+            precomputedData.vertices[0].z()
+	};
+
+	Eigen::Vector3f vmax = {
+	        precomputedData.vertices[0].x(),
+            precomputedData.vertices[0].y(),
+            precomputedData.vertices[0].z()
+	};
 	for (int i = 0; i < num_verts; ++i) {
-		Eigen::Vector4f vertex = mesh.getVertex(i);
+		const auto vertex = precomputedData.vertices[i];
 		vmin(0) = min(vmin.x(), vertex.x());
 		vmax(0) = max(vmax.x(), vertex.x());
 

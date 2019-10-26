@@ -18,17 +18,11 @@
 #include <tucano/utils/objimporter.hpp>
 #include "boundingBox.h"
 
-struct PrecomputedData {
-    vector<Eigen::Vector3f> vertices;
-    vector<Eigen::Vector3f> normals;
-    vector<Eigen::Vector3f> faceNormals;
-    Eigen::Affine3f shapeModelMatrix;
-};
 
 class Flyscene {
 
 public:
-    Flyscene(void) = default;
+    Flyscene() = default;
 
     /**
      * @brief Initializes the shader effect

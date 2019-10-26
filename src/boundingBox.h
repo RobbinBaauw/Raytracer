@@ -15,6 +15,7 @@
 #include <tucano/utils/imageIO.hpp>
 #include <tucano/utils/mtlIO.hpp>
 #include <tucano/utils/objimporter.hpp>
+#include "defs.h"
 
 static int nodeCount = 0;
 static int leafCount = 0;
@@ -86,7 +87,7 @@ public:
      * @brief The function that splits the box in two on the average of the biggest side
      * @param The used mesh as a reference "std::ref(mesh)"
      */
-    void splitBox(Tucano::Mesh &mesh) {
+    void splitBox(PrecomputedData& precomputedData) {
         ++nodeCount;
 
         //This will be a recursive function so we will need a basecase, the minimum amount of faces alowed in a box
@@ -102,10 +103,10 @@ public:
         float sum = 0;
         float weight = 0;
         for (auto &it : faceIndices) {
-            Tucano::Face face = mesh.getFace(it);
-            sum += mesh.getVertex(face.vertex_ids[0])(sideIndex) +
-                   mesh.getVertex(face.vertex_ids[1])(sideIndex) +
-                   mesh.getVertex(face.vertex_ids[2])(sideIndex);
+            const auto vertexIds = precomputedData.faceVertexIds[it];
+            sum += precomputedData.vertices[vertexIds[0]](sideIndex) +
+                    precomputedData.vertices[vertexIds[1]](sideIndex) +
+                    precomputedData.vertices[vertexIds[2]](sideIndex);
 
             weight += 3;
         }
@@ -130,11 +131,11 @@ public:
         float upperMin = std::numeric_limits<float>::max();
 
         for (auto &it : faceIndices) {
-            Tucano::Face face = mesh.getFace(it);
+            const auto vertexIds = precomputedData.faceVertexIds[it];
 
-            float first = mesh.getVertex(face.vertex_ids[0])(sideIndex);
-            float sec = mesh.getVertex(face.vertex_ids[1])(sideIndex);
-            float third = mesh.getVertex(face.vertex_ids[2])(sideIndex);
+            float first = precomputedData.vertices[vertexIds[0]](sideIndex);
+            float sec = precomputedData.vertices[vertexIds[1]](sideIndex);
+            float third = precomputedData.vertices[vertexIds[2]](sideIndex);
 
             if (first > avg && sec > avg && third > avg) {
                 upperBox.addFaceIndex(it);
@@ -154,8 +155,8 @@ public:
 
         //Perform recursive splitting of the boxes but only if the split actually did something.
         if (lowerBox.faceIndices.size() < 0.8 * faceIndices.size() && upperBox.faceIndices.size() < 0.8 * faceIndices.size()) {
-            lowerBox.splitBox(std::ref(mesh));
-            upperBox.splitBox(std::ref(mesh));
+            lowerBox.splitBox(precomputedData);
+            upperBox.splitBox(precomputedData);
             setChildren(lowerBox, upperBox);
         } else {
             ++leafCount;
@@ -166,13 +167,11 @@ public:
      * Returns the size of the x-y-z axis of the cube.
      * @param shapeModelMatrix the modelMatrix of the mesh, to transform the boundingBox to the actual size
      */
-    Eigen::Vector3f getShape(const Eigen::Affine3f& shapeModelMatrix) {
-        Eigen::Vector3f minLoc = shapeModelMatrix * vmin;
-        Eigen::Vector3f maxLoc = shapeModelMatrix * vmax;
+    Eigen::Vector3f getShape() {
         return {
-                maxLoc[0] - minLoc[0],
-                maxLoc[1] - minLoc[1],
-                maxLoc[2] - minLoc[2]
+                vmax[0] - vmin[0],
+                vmax[1] - vmin[1],
+                vmax[2] - vmin[2]
         };
     }
 
@@ -182,18 +181,18 @@ public:
      * @param shapeModelMatrix, the modelmatrix of the mesh, to translate the cube to the center of the mesh
      * @param onlyIntersected if set to true we only show the leaves that are hit by the debug ray
      */
-    void renderLeafBoxes(const Tucano::Flycamera &flycamera, const Tucano::Camera &scene_light, const Eigen::Affine3f& shapeModelMatrix, const bool onlyIntersected) {
+    void renderLeafBoxes(const Tucano::Flycamera &flycamera, const Tucano::Camera &scene_light, const bool onlyIntersected) {
         if (!children.empty()) {
-            children[0].renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, onlyIntersected);
-            children[1].renderLeafBoxes(std::ref(flycamera), std::ref(scene_light), shapeModelMatrix, onlyIntersected);
+            children[0].renderLeafBoxes(flycamera, scene_light, onlyIntersected);
+            children[1].renderLeafBoxes(flycamera, scene_light, onlyIntersected);
         } else {
             //Render when we don't want only intersected, and if we do only want intersected then should be hit by the ray as well.
             bool perform = !onlyIntersected || (onlyIntersected && hitByRay);
             if (perform) {
-                Eigen::Vector3f shape = getShape(shapeModelMatrix);
+                Eigen::Vector3f shape = getShape();
                 Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
                 bounding.resetModelMatrix();
-                bounding.modelMatrix()->translate(shapeModelMatrix * ((vmax + vmin) / 2));
+                bounding.modelMatrix()->translate(((vmax + vmin) / 2));
                 auto r = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
                 auto g = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
                 auto b = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
@@ -201,13 +200,8 @@ public:
                 bounding.render(flycamera, scene_light);
 
                 if (deleteCount < 1) {
-                    std::cout << "vmin" << shapeModelMatrix * vmin << std::endl;
-                    std::cout << "vmax" << shapeModelMatrix * vmax << std::endl;
-
-                    std::cout << "Shape " << getShape(shapeModelMatrix) << std::endl;
                     std::cout << "modelmatrix" << bounding.getModelMatrix().matrix() << std::endl;
                     std::cout << "shapematrix" << bounding.getShapeMatrix().matrix() << std::endl;
-                    std::cout << "shapemodelmatrix" << bounding.getShapeModelMatrix().matrix() << std::endl;
                     ++deleteCount;
                 }
             }
@@ -228,22 +222,19 @@ public:
     * @param origin, the origin of the ray
     * @param dest, the destination
     */
-    bool boxIntersection(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, const Eigen::Affine3f &shapeModelMatrix) {
-        Eigen::Vector3f minLoc = shapeModelMatrix * vmin;
-        Eigen::Vector3f maxLoc = shapeModelMatrix * vmax;
-
-        float tx_min = (minLoc.x() - origin.x()) / direction.x();
-        float tx_max = (maxLoc.x() - origin.x()) / direction.x();
+    bool boxIntersection(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction) {
+        float tx_min = (vmin.x() - origin.x()) / direction.x();
+        float tx_max = (vmax.x() - origin.x()) / direction.x();
 
         if (tx_min > tx_max) swap(tx_min, tx_max);
 
-        float ty_min = (minLoc.y() - origin.y()) / direction.y();
-        float ty_max = (maxLoc.y() - origin.y()) / direction.y();
+        float ty_min = (vmin.y() - origin.y()) / direction.y();
+        float ty_max = (vmax.y() - origin.y()) / direction.y();
 
         if (ty_min > ty_max) swap(ty_min, ty_max);
 
-        float tz_min = (minLoc.z() - origin.z()) / direction.z();
-        float tz_max = (maxLoc.z() - origin.z()) / direction.z();
+        float tz_min = (vmin.z() - origin.z()) / direction.z();
+        float tz_max = (vmax.z() - origin.z()) / direction.z();
 
         if (tz_min > tz_max) swap(tz_min, tz_max);
 
@@ -269,19 +260,18 @@ public:
     * @param dest, the destination
     * @param intersectingFaces, an empty vector list of face indices.
     */
-    void intersectingBoxes(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, std::vector<int> &intersectingFaces, const Eigen::Affine3f &shapeModelMatrix) {
-        if (children.empty()) {
-            if (boxIntersection(origin, direction, shapeModelMatrix)) {
+    void intersectingBoxes(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, std::vector<int> &intersectingFaces) {
+        if (boxIntersection(origin, direction)) {
+            if (children.empty()) {
                 hitByRay = true;
                 intersectingFaces.insert(intersectingFaces.end(), faceIndices.begin(), faceIndices.end());
             } else {
-                hitByRay = false;
+                children[0].intersectingBoxes(origin, direction, intersectingFaces);
+                children[1].intersectingBoxes(origin, direction, intersectingFaces);
             }
-            return;
+        } else {
+            hitByRay = false;
         }
-
-        children[0].intersectingBoxes(origin, direction, intersectingFaces, shapeModelMatrix);
-        children[1].intersectingBoxes(origin, direction, intersectingFaces, shapeModelMatrix);
     }
 };
 
