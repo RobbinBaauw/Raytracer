@@ -37,7 +37,7 @@ private:
     std::vector<boundingBox> children;
 
     //If we have this amount of faces in a box it shouldn't be split any further
-    int baseCase = 1000;
+    int baseCase = 50;
 
 public:
     bool hitByRay = false;

@@ -267,6 +267,7 @@ void Flyscene::raytraceScene(int width, int height) {
 
     // create 2d vector to hold pixel colors and resize to match image size
     vector<vector<Eigen::Vector3f>> pixel_data;
+    int xSize = image_size[0];
     int ySize = image_size[1];
     pixel_data.resize(ySize);
     for (int i = 0; i < ySize; ++i)
@@ -282,23 +283,30 @@ void Flyscene::raytraceScene(int width, int height) {
     // origin of the ray is always the camera center
     Eigen::Vector3f origin = flycamera.getCenter();
 
-     const auto threadCount = thread::hardware_concurrency();
-//    const auto threadCount = 1;
-    const auto ysPerThread = ceil((float) ySize / (float) threadCount); // the amount of y coordinates per thread, ceil. Meaning we start with this number and if it is divisble by the remaining threads we do -1
+//     const auto threadCount = thread::hardware_concurrency();
+    const auto threadCount = 1;
 
     vector<thread> threads;
 
     auto startingY = 0;
-    for (int i = 0; i < threadCount; i++) {
-        const auto threadsLeft = threadCount - i;
-        const auto ysToDo = ySize - startingY;
-
-        const int currentYs = ysToDo % threadsLeft == 0 ? ysToDo / threadsLeft : ysPerThread;
-
-        threads.emplace_back(&Flyscene::traceFromY, this, startingY, currentYs, std::ref(origin), std::ref(pixel_data), std::ref(image_size)); // Requires std::ref
-
-        startingY += currentYs;
+    for (int threadIndex = 0; threadIndex < threadCount; threadIndex++) {
+        vector<Eigen::Vector2f> myPixels;
+        for (int y = 0; y < ySize; y++) {
+            for (int x = 0; x < xSize; x++) {
+                if ((y * xSize + x) % threadCount == threadIndex) {
+                    myPixels.emplace_back(x, y);
+                }
+            }
+        }
+        threads.emplace_back(&Flyscene::tracePixels, this, myPixels, std::ref(origin), std::ref(pixel_data), std::ref(image_size)); // Requires std::ref
     }
+
+#ifdef TIMESTAMPING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Dividing threads: " << diff.count() << "ms" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
 
     for (int i = 0; i < threadCount; i++) {
         threads[i].join();
@@ -407,8 +415,31 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
     // Get direction of ray
     const auto direction = (dest - origin).normalized();
 
-    if (doesIntersect(origin, direction, faceId, hitPoint, reflection, refraction)) {
+#ifdef TIMESTAMPING
+    std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
+    std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
+    std::chrono::time_point<std::chrono::steady_clock> end;
+    std::chrono::microseconds diff;
+#endif
+
+    bool b = doesIntersect(origin, direction, faceId, hitPoint, reflection, refraction);
+
+#ifdef TIMESTAMPING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "Intersection check: " << diff.count() << "us" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
+
+    if (b) {
         const Eigen::Vector3f localShading = shadeOffFace(faceId, origin, hitPoint);
+
+#ifdef TIMESTAMPING
+        end = std::chrono::steady_clock::now();
+        diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        std::cout << "Shading: " << diff.count() << "us" << std::endl;
+        start = std::chrono::steady_clock::now();
+#endif
 
         if (recursionDepth < MAXRECURSION) {
             Tucano::Face face = mesh.getFace(faceId);
@@ -479,16 +510,29 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
                              int &faceId, Eigen::Vector3f &hitpoint,
                              Eigen::Vector3f &reflection, Eigen::Vector3f &refraction) {
 
+#ifdef TIMESTAMPING
+    std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
+    std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
+    std::chrono::time_point<std::chrono::steady_clock> end;
+    std::chrono::microseconds diff;
+#endif
+
     vector<int> intersectingFaces;
     boxMain.intersectingBoxes(origin, direction, intersectingFaces);
+
+#ifdef TIMESTAMPING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "DS check: " << diff.count() << "us, " << intersectingFaces.size() << " faces left" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
 
     bool hasIntersected = false;
     float currentMaxDepth = numeric_limits<float>::max();
 
     for (auto& i : intersectingFaces) {
         // Retrieve the current face and its vertex ids
-        const auto currFace = mesh.getFace(i);
-        const auto currVertexIds = currFace.vertex_ids;
+        const auto currVertexIds = precomputedData.faceVertexIds[i];
 
         assert(currVertexIds.size() == 3);
 
@@ -514,10 +558,15 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
         const auto hitPoint = origin + tHit * direction;
 
         const auto a = (v1 - v0).cross(hitPoint - v0).dot(normal);
-        const auto b = (v2 - v1).cross(hitPoint - v1).dot(normal);
-        const auto c = (v0 - v2).cross(hitPoint - v2).dot(normal);
+        if (a < 0) continue;
 
-        if (a > 0 && b > 0 && c > 0 && tHit < currentMaxDepth) {
+        const auto b = (v2 - v1).cross(hitPoint - v1).dot(normal);
+        if (b < 0) continue;
+
+        const auto c = (v0 - v2).cross(hitPoint - v2).dot(normal);
+        if (c < 0) continue;
+
+        if (tHit < currentMaxDepth) {
             hasIntersected = true;
             currentMaxDepth = tHit;
 
@@ -529,27 +578,32 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
         }
     }
 
+#ifdef TIMESTAMPING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "Faces iteration: " << diff.count() << "us" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
+
     return hasIntersected;
 }
 
-void Flyscene::traceFromY(int startY, int amountY, Eigen::Vector3f &origin, vector<vector<Eigen::Vector3f>> &pixel_data,
+void Flyscene::tracePixels(vector<Eigen::Vector2f> pixels, Eigen::Vector3f &origin, vector<vector<Eigen::Vector3f>> &pixel_data,
                           Eigen::Vector2i &image_size) {
 
     // for every pixel shoot a ray from the origin through the pixel coords
-    for (int y = startY; y < startY + amountY; ++y) {
-        for (int x = 0; x < image_size[0]; ++x) {
-            // create a ray from the camera passing through the pixel (i,j)
-            Eigen::Vector3f screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
+    for (auto& pixel : pixels) {
+        // create a ray from the camera passing through the pixel (i,j)
+        Eigen::Vector3f screen_coords = flycamera.screenToWorld(pixel);
 
 #ifdef LOGGING
 //            std::cout << "Tracing XY (" << x << ", " << y << ")" << std::endl;
 #endif
 
-            // launch raytracing for the given ray and write result to pixel data
-            const Eigen::Vector3f &colorOut = traceRay(origin, screen_coords, 0);
+        // launch raytracing for the given ray and write result to pixel data
+        const Eigen::Vector3f &colorOut = traceRay(origin, screen_coords, 0);
 
-            pixel_data[y][x] = colorOut;
-        }
+        pixel_data[pixel.y()][pixel.x()] = colorOut;
     }
 }
 
