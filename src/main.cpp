@@ -5,8 +5,8 @@
 #include "flyscene.hpp"
 #include <iostream>
 
-#define WINDOW_WIDTH 500
-#define WINDOW_HEIGHT 500
+#define WINDOW_WIDTH 100
+#define WINDOW_HEIGHT 100
 
 Flyscene *flyscene;
 Eigen::Vector2f mouse_pos = Eigen::Vector2f::Zero();
@@ -62,7 +62,7 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
     else if (key == GLFW_KEY_R && action == GLFW_PRESS)
         flyscene->getCamera()->reset();
     else if (key == GLFW_KEY_Z && action == GLFW_PRESS)
-        flyscene->createDebugRay(mouse_pos);
+        flyscene->startDebugRay(mouse_pos);
     else if (key == GLFW_KEY_L && action == GLFW_PRESS)
         flyscene->addLight();
     else if (key == GLFW_KEY_T && action == GLFW_PRESS)

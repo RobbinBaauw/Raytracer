@@ -3,14 +3,13 @@
 #include <cassert>
 #include <thread>
 #include <chrono>
-#include "../boundingBox.h"
+#include "boundingBox.h"
+
+#define TIMESTAMPING
+//#define LOGGING
 
 const int MAXRECURSION = 5;
 const int MAXDEBUGRECURSION = 10;
-
-boundingBox boxMain;
-bool renderBoxBool = false;
-bool renderIntersectedBoxBool = false;
 
 void Flyscene::initialize(int width, int height) {
     // initiliaze the Phong Shading effect for the Opengl Previewer
@@ -57,7 +56,7 @@ void Flyscene::initialize(int width, int height) {
 	
 	std::vector<boundingBox> currChildren = boxMain.getChildren();
 	int depth = 0;
-	while (currChildren.size() > 0) {
+	while (!currChildren.empty()) {
 		++depth;
 		currChildren = currChildren[0].getChildren();
 	}
@@ -161,10 +160,22 @@ void Flyscene::startDebugRay(const Eigen::Vector2f& mouseCoords) {
     Eigen::Vector3f screen_pos = flycamera.screenToWorld(mouseCoords);
 
 	std::vector<int> indices;
-	boxMain.intersectingBoxes(flycamera.getCenter(), screen_pos, indices, mesh.getShapeModelMatrix());
+    const Eigen::Vector3f &origin = flycamera.getCenter();
+    boxMain.intersectingBoxes(origin, screen_pos, indices, mesh.getShapeModelMatrix());
 
     // direction from camera center to click position
-    Eigen::Vector3f dir = (screen_pos - flycamera.getCenter()).normalized();
+    Eigen::Vector3f dir = (screen_pos - origin).normalized();
+
+    createDebugRay(origin, dir, 0);
+}
+
+void Flyscene::createDebugRay(const Eigen::Vector3f& origin, const Eigen::Vector3f& direction, int recursionDepth) {
+
+    auto currentRay = Tucano::Shapes::Cylinder(0.1, 1.0, 16, 64);
+
+    // the debug ray is a cylinder, set the radius and length of the cylinder
+    currentRay.setSize(0.005, 10.0);
+    currentRay.resetModelMatrix();
 
     // position and orient the cylinder representing the ray
     currentRay.setOriginOrientation(origin, direction);
@@ -194,7 +205,7 @@ void Flyscene::startDebugRay(const Eigen::Vector2f& mouseCoords) {
 
 void Flyscene::raytraceScene(int width, int height) {
 
-#ifdef LOGGING
+#ifdef TIMESTAMPING
     std::cout << "Starting ray tracing ..." << std::endl;
 
     std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
@@ -216,7 +227,7 @@ void Flyscene::raytraceScene(int width, int height) {
     for (int i = 0; i < ySize; ++i)
         pixel_data[i].resize(image_size[0]);
 
-#ifdef LOGGING
+#ifdef TIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Initialization stuff: " << diff.count() << "ms" << std::endl;
@@ -248,7 +259,7 @@ void Flyscene::raytraceScene(int width, int height) {
         threads[i].join();
     }
 
-#ifdef LOGGING
+#ifdef TIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Writing file: " << diff.count() << "ms" << std::endl;
@@ -257,7 +268,7 @@ void Flyscene::raytraceScene(int width, int height) {
     // write the ray tracing result to a PPM image
     Tucano::ImageImporter::writePPMImage("result.ppm", pixel_data);
 
-#ifdef LOGGING
+#ifdef TIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - completeStart);
     std::cout << "Done! Total time: " << diff.count() << "ms" << std::endl;
@@ -320,7 +331,11 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
 
         const auto colorSum = diffuse + specular + ambient;
         Eigen::Vector3f minSum = colorSum.cwiseMax(0.0).cwiseMin(1.0);
-        minSum[3] = material.getOpticalDensity();
+
+#ifdef LOGGING
+        std::cout << "Color" << std::endl;
+        std::cout << minSum << std::endl;
+#endif
 
         color += minSum;
     }
@@ -413,11 +428,13 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
                              int &faceId, Eigen::Vector3f &hitpoint,
                              Eigen::Vector3f &reflection, Eigen::Vector3f &refraction) {
 
+    vector<int> intersectingFaces;
+    boxMain.intersectingBoxes(origin, direction, intersectingFaces, mesh.getShapeModelMatrix());
+
     bool hasIntersected = false;
     float currentMaxDepth = numeric_limits<float>::max();
 
-    auto nrOfFaces = mesh.getNumberOfFaces();
-    for (int i = 0; i < nrOfFaces; i++) {
+    for (auto& i : intersectingFaces) {
         // Retrieve the current face and its vertex ids
         const auto currFace = mesh.getFace(i);
         const auto currVertexIds = currFace.vertex_ids;
@@ -475,6 +492,10 @@ void Flyscene::traceFromY(int startY, int amountY, Eigen::Vector3f &origin, vect
         for (int x = 0; x < image_size[0]; ++x) {
             // create a ray from the camera passing through the pixel (i,j)
             Eigen::Vector3f screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
+
+#ifdef LOGGING
+            std::cout << "Tracing XY (" << x << ", " << y << ")" << std::endl;
+#endif
 
             // launch raytracing for the given ray and write result to pixel data
             const Eigen::Vector3f &colorOut = traceRay(origin, screen_coords, 0);

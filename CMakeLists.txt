@@ -37,11 +37,12 @@ endif()
 
 # set the directory with your files as SHADING_SOURCES
 set(
-  PROJECT_SOURCES
-  ${PROJECT_DIR}/main.cpp
-  ${PROJECT_DIR}/flyscene.cpp
-  #${PROJECT_DIR}/raytracing.cpp  
-  )
+        PROJECT_SOURCES
+        ${PROJECT_DIR}/main.cpp
+        ${PROJECT_DIR}/flyscene.cpp
+        ${PROJECT_DIR}/boundingBox.h
+        #${PROJECT_DIR}/raytracing.cpp
+)
 
 # add all the source files for compilation (your files + tucano files)
 add_executable(
