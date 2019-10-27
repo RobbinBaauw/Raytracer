@@ -170,7 +170,7 @@ void Flyscene::precomputeData() {
         precomputedData.vertices[v1Id] = v1;
 
         const auto v1Normal = mesh.getNormal(v1Id).normalized();
-        precomputedData.normals[v1Id] = v0Normal;
+        precomputedData.normals[v1Id] = v1Normal;
 
         // v2
         const auto v2Id = currVertexIds[2];
@@ -192,8 +192,8 @@ void Flyscene::precomputeData() {
         };
     }
 
-	
-	flycamera.reComputeViewMatrix();
+
+    flycamera.reComputeViewMatrix();
     for (int x = 0; x < xSize; x++) {
         for (int y = 0; y < ySize; y++) {
             precomputedData.screenToWorld[x * ySize + y] = flycamera.screenToWorld(Eigen::Vector2f(x, y));
@@ -277,7 +277,7 @@ void Flyscene::startDebugRay(const Eigen::Vector2f &mouseCoords) {
     rays.clear();
 
     // from pixel position to world coordinates
-	flycamera.reComputeViewMatrix();
+    flycamera.reComputeViewMatrix();
     Eigen::Vector3f screen_pos = flycamera.screenToWorld(mouseCoords);
 
     std::vector<int> indices;
@@ -467,18 +467,13 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
     return color;
 }
 
-Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &dest, int recursionDepth) {
+Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, int recursionDepth) {
 
     Eigen::Vector3f hitPoint;
     int faceId;
 
     Eigen::Vector3f reflection;
     Eigen::Vector3f refraction;
-
-Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &dest, const int recursionDepth) {
-
-    // Get direction of ray
-    const auto direction = (dest - origin).normalized();
 
 #ifdef DETAILTIMESTAMPING
     std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
@@ -520,9 +515,8 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
 
                 // Reflection
                 reflection.normalize();
-                Eigen::Vector3f reflectionDirection = hitPoint + reflection;
 
-                const Eigen::Vector3f reflectionShading = traceRay(hitPoint, reflectionDirection, recursionDepth + 1);
+                const Eigen::Vector3f reflectionShading = traceRay(hitPoint + reflection, reflection, recursionDepth + 1);
                 const Eigen::Vector3f weightedReflectionShading = {
                 reflectionShading.x() * specular.x(),
                 reflectionShading.y() * specular.y(),
@@ -531,9 +525,8 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
 
                 // Refraction
                 refraction.normalize();
-                Eigen::Vector3f refractionDirection = hitPoint + refraction;
 
-//                const Eigen::Vector3f refractionShading = traceRay(hitPoint, refractionDirection, recursionDepth + 1);
+//                const Eigen::Vector3f refractionShading = traceRay(hitPoint, refraction, recursionDepth + 1);
 //                const Eigen::Vector3f weightedRefractionShading = {
 //                        refractionShading.x() * specular.x(),
 //                        refractionShading.y() * specular.y(),
@@ -593,13 +586,6 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
     float currentMaxDepth = numeric_limits<float>::max();
 
     for (auto &i : intersectingFaces) {
-        // Retrieve the current face and its vertex ids
-        const auto &currVertexIds = precomputedData.faceVertexIds[i];
-
-        // Create the vertices
-        const Eigen::Vector3f &v0 = precomputedData.vertices[get<0>(currVertexIds)];
-        const Eigen::Vector3f &v1 = precomputedData.vertices[get<1>(currVertexIds)];
-        const Eigen::Vector3f &v2 = precomputedData.vertices[get<2>(currVertexIds)];
 
         // Get normal (implemented by Tucano)
         const Eigen::Vector3f &normal = precomputedData.faceNormals[i];
@@ -613,6 +599,14 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
         if (tHit < 0.00001f || tHit > currentMaxDepth) {
             continue;
         }
+
+        // Retrieve the current face and its vertex ids
+        const auto &currVertexIds = precomputedData.faceVertexIds[i];
+
+        // Create the vertices
+        const Eigen::Vector3f &v0 = precomputedData.vertices[get<0>(currVertexIds)];
+        const Eigen::Vector3f &v1 = precomputedData.vertices[get<1>(currVertexIds)];
+        const Eigen::Vector3f &v2 = precomputedData.vertices[get<2>(currVertexIds)];
 
         // Compute hit point (see slide 10)
         const auto hitPoint = origin + tHit * direction;
@@ -652,15 +646,17 @@ void Flyscene::tracePixels(int threadId, int threads, Eigen::Vector3f &origin, v
     const int &xSize = image_size[0];
     const int &ySize = image_size[1];
 
-	flycamera.reComputeViewMatrix();
+    flycamera.reComputeViewMatrix();
 
     for (int x = 0; x < xSize; x++) {
         for (int y = threadId; y < ySize; y += threads) {
             // create a ray from the camera passing through the pixel (i,j)
-			const Eigen::Vector3f& screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
+            const Eigen::Vector3f &screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
+
+            const Eigen::Vector3f direction = (screen_coords - origin).normalized();
 
             // launch raytracing for the given ray and write result to pixel data
-            const Eigen::Vector3f &colorOut = traceRay(origin, screen_coords, 0);
+            const Eigen::Vector3f &colorOut = traceRay(origin, direction, 0);
 
             pixel_data[y][x] = colorOut;
         }

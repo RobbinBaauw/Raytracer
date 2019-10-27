@@ -79,7 +79,7 @@ public:
      * @param dest Other point on the ray, usually screen coordinates
      * @return a RGB color
      */
-    Eigen::Vector3f traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &dest, int recursionDepth);
+    Eigen::Vector3f traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, int recursionDepth);
 
     bool doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
         int &faceId, Eigen::Vector3f &hitpoint,
