@@ -192,6 +192,8 @@ void Flyscene::precomputeData() {
         };
     }
 
+	
+	flycamera.reComputeViewMatrix();
     for (int x = 0; x < xSize; x++) {
         for (int y = 0; y < ySize; y++) {
             precomputedData.screenToWorld[x * ySize + y] = flycamera.screenToWorld(Eigen::Vector2f(x, y));
@@ -275,6 +277,7 @@ void Flyscene::startDebugRay(const Eigen::Vector2f &mouseCoords) {
     rays.clear();
 
     // from pixel position to world coordinates
+	flycamera.reComputeViewMatrix();
     Eigen::Vector3f screen_pos = flycamera.screenToWorld(mouseCoords);
 
     std::vector<int> indices;
@@ -649,10 +652,12 @@ void Flyscene::tracePixels(int threadId, int threads, Eigen::Vector3f &origin, v
     const int &xSize = image_size[0];
     const int &ySize = image_size[1];
 
+	flycamera.reComputeViewMatrix();
+
     for (int x = 0; x < xSize; x++) {
         for (int y = threadId; y < ySize; y += threads) {
             // create a ray from the camera passing through the pixel (i,j)
-            const Eigen::Vector3f &screen_coords = precomputedData.screenToWorld[x * ySize + y];
+			const Eigen::Vector3f& screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
 
             // launch raytracing for the given ray and write result to pixel data
             const Eigen::Vector3f &colorOut = traceRay(origin, screen_coords, 0);

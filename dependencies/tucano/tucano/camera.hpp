@@ -80,6 +80,9 @@ protected:
     /// Flag to indicate if using a perspective or othograpic projection.
     bool use_perspective;
 
+	//Stored inverseViewMatrix so it doesn't have to be computed every time
+	Eigen::Affine3f inverseViewMatrix;
+
 public:
 
     /**
@@ -148,7 +151,7 @@ public:
     }
 
     /**
-     * @brief Returns a point in 3D space corresponding to given pixel coordinates
+     * @brief Returns a point in 3D space corresponding to given pixel coordinates, first call reComputeViewMatrix
      *
      * @param screen_coords Pixel coordinates to be transformed
      */
@@ -167,10 +170,15 @@ public:
         norm_coords[1] *= scale;
 
         // transform to world space
-        Eigen::Vector3f world_coords = getViewMatrix().inverse() * norm_coords;
+        Eigen::Vector3f world_coords = inverseViewMatrix * norm_coords;
 
         return world_coords;
     }
+
+	//Needs to be called before screenToWorld
+	void reComputeViewMatrix() {
+		inverseViewMatrix = getViewMatrix().inverse();
+	}
 
     /**
      * @brief Returns screen space coordinates of a 3D point.
