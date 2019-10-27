@@ -312,6 +312,7 @@ void Flyscene::raytraceScene(int width, int height) {
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Raytracing: " << diff.count() << "ms" << std::endl;
+    start = std::chrono::steady_clock::now();
 #endif
 
     // write the ray tracing result to a PPM image
@@ -321,6 +322,7 @@ void Flyscene::raytraceScene(int width, int height) {
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Writing file: " << diff.count() << "ms" << std::endl;
+    start = std::chrono::steady_clock::now();
 #endif
 
 #ifdef TIMESTAMPING
@@ -544,7 +546,7 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
         // Compute tHit (see slide 10)
         const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
 
-        if (tHit < 0.00001f) {
+        if (tHit < 0.00001f || tHit > currentMaxDepth) {
             continue;
         }
 
@@ -560,16 +562,14 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
         const auto c = (v0 - v2).cross(hitPoint - v2).dot(normal);
         if (c < 0) continue;
 
-        if (tHit < currentMaxDepth) {
-            hasIntersected = true;
-            currentMaxDepth = tHit;
+        hasIntersected = true;
+        currentMaxDepth = tHit;
 
-            reflection = direction - 2 * direction.dot(normal) * normal;
-            refraction = Eigen::Vector3f(0, 0, 0); // TODO
+        reflection = direction - 2 * direction.dot(normal) * normal;
+        refraction = Eigen::Vector3f(0, 0, 0); // TODO
 
-            hitpoint = hitPoint;
-            faceId = i;
-        }
+        hitpoint = hitPoint;
+        faceId = i;
     }
 
 #ifdef DETAILTIMESTAMPING
