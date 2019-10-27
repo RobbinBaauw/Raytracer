@@ -92,12 +92,12 @@ public:
         vector<vector<Eigen::Vector3f>> &pixel_data,
         Eigen::Vector2i &image_size);
 
-	bool checkIfShadow(const Eigen::Vector3f point);
-	
+    void precomputeData();
+
 	/**
 	* @brief function which calculates soft shadows.
 	*/
-	Eigen::Vector3f getLightIntensity(const Tucano::Face face, const Eigen::Vector3f& hitPosition);
+	Eigen::Vector3f getLightIntensity(const Eigen::Vector3f& hitPosition, const Eigen::Vector3f& hitNormal);
 
 private:
     PrecomputedData precomputedData;
