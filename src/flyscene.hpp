@@ -64,7 +64,7 @@ public:
     /**
      * @brief raytrace your scene from current camera position
      */
-    void raytraceScene(int width = 0, int height = 0);
+    void raytraceScene();
 
     /**
     * @Brief function that calculates basic shading of an intersected face
@@ -79,7 +79,7 @@ public:
      * @param dest Other point on the ray, usually screen coordinates
      * @return a RGB color
      */
-    Eigen::Vector3f traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &dest, const int recursionDepth);
+    Eigen::Vector3f traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &dest, int recursionDepth);
 
     bool doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
         int &faceId, Eigen::Vector3f &hitpoint,

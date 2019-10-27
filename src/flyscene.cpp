@@ -13,6 +13,15 @@ const int MAXRECURSION = 5;
 const int MAXDEBUGRECURSION = 10;
 
 void Flyscene::initialize(int width, int height) {
+#ifdef TIMESTAMPING
+    std::cout << "Initializing scene ..." << std::endl;
+
+    std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
+    std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
+    std::chrono::time_point<std::chrono::steady_clock> end;
+    std::chrono::milliseconds diff;
+#endif
+
     // initiliaze the Phong Shading effect for the Opengl Previewer
     phong.initialize();
 
@@ -28,29 +37,70 @@ void Flyscene::initialize(int width, int height) {
   flycamera.setPerspectiveMatrix(60.0, width / (float)height, 0.1f, 100.0f);
   flycamera.setViewport(Eigen::Vector2f((float)width, (float)height));
 
-  // load the OBJ file and materials
-  Tucano::MeshImporter::loadObjFile(mesh, materials,
-                                    "resources/models/plane.obj");
+#ifdef TIMESTAMPING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Loading obj: " << diff.count() << "ms" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
+
+    // normalize the model (scale to unit cube and center at origin)
+    mesh.normalizeModelMatrix();
 
 
   mesh.normalizeModelMatrix();
 
+#ifdef TIMESTAMPING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Init p1: " << diff.count() << "ms" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
+
     startDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
+
+#ifdef TIMESTAMPING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Debug ray: " << diff.count() << "ms" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
 
     camerarep.resetModelMatrix();
     camerarep.setModelMatrix(flycamera.getViewMatrix().inverse());
 
+#ifdef TIMESTAMPING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Init p2: " << diff.count() << "ms" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
+
     precomputeData();
 
-	std::vector<Eigen::Vector3f> boundaries = boundingVectors();
-	boxMain = boundingBox(boundaries[0], boundaries[1]);
+#ifdef TIMESTAMPING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Precomputing: " << diff.count() << "ms" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
 
-	int numb_faces = mesh.getNumberOfFaces();
-	for (int i = 0; i < numb_faces; ++i) {
-		boxMain.addFaceIndex(i);
-	}
+    std::vector<Eigen::Vector3f> boundaries = boundingVectors();
+    boxMain = boundingBox(boundaries[0], boundaries[1]);
 
-	boxMain.splitBox(precomputedData);
+    int numb_faces = mesh.getNumberOfFaces();
+    for (int i = 0; i < numb_faces; ++i) {
+        boxMain.addFaceIndex(i);
+    }
+
+    boxMain.splitBox(precomputedData);
+
+#ifdef TIMESTAMPING
+    end = std::chrono::steady_clock::now();
+    diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Bounding boxes: " << diff.count() << "ms" << std::endl;
+    start = std::chrono::steady_clock::now();
+#endif
 
 #ifdef LOGGING
     std::cout << "Node count is: " << boundingBox::getNode() << std::endl;
@@ -89,21 +139,22 @@ void Flyscene::precomputeData() {
     precomputedData.normals = new Eigen::Vector3f[mesh.getNumberOfVertices()];
     precomputedData.vertices = new Eigen::Vector3f[mesh.getNumberOfVertices()];
 
+    precomputedData.faceOriginDistance = new float[mesh.getNumberOfFaces()];
     precomputedData.faceNormals = new Eigen::Vector3f[mesh.getNumberOfFaces()];
+    precomputedData.faceNormalizedNormals = new Eigen::Vector3f[mesh.getNumberOfFaces()];
+    precomputedData.faceMaterialIds = new int[mesh.getNumberOfFaces()];
     precomputedData.faceVertexIds = new std::tuple<int, int, int>[mesh.getNumberOfFaces()];
+
+    Eigen::Vector2i image_size = flycamera.getViewportSize();
+    const auto &xSize = image_size[0];
+    const auto &ySize = image_size[1];
+    precomputedData.screenToWorld = new Eigen::Vector3f[xSize * ySize];
 
     auto nrOfFaces = mesh.getNumberOfFaces();
     for (int i = 0; i < nrOfFaces; i++) {
 
         const auto currFace = mesh.getFace(i);
         const auto currVertexIds = currFace.vertex_ids;
-
-        precomputedData.faceNormals[i] = currFace.normal;
-        precomputedData.faceVertexIds[i] = {
-                currVertexIds[0],
-                currVertexIds[1],
-                currVertexIds[2]
-        };
 
         // v0
         const auto v0Id = currVertexIds[0];
@@ -128,6 +179,23 @@ void Flyscene::precomputeData() {
 
         const auto v2Normal = mesh.getNormal(v2Id).normalized();
         precomputedData.normals[v2Id] = v2Normal;
+
+        // Faces
+        precomputedData.faceOriginDistance[i] = currFace.normal.dot(v0);
+        precomputedData.faceNormals[i] = currFace.normal;
+        precomputedData.faceNormalizedNormals[i] = currFace.normal.normalized();
+        precomputedData.faceMaterialIds[i] = currFace.material_id;
+        precomputedData.faceVertexIds[i] = {
+                currVertexIds[0],
+                currVertexIds[1],
+                currVertexIds[2]
+        };
+    }
+
+    for (int x = 0; x < xSize; x++) {
+        for (int y = 0; y < ySize; y++) {
+            precomputedData.screenToWorld[x * ySize + y] = flycamera.screenToWorld(Eigen::Vector2f(x, y));
+        }
     }
 }
 
@@ -153,20 +221,20 @@ void Flyscene::paintGL() {
   // }
 
 
-	if (renderBoxBool) {
-		boxMain.renderLeafBoxes(flycamera, scene_light, false);
-	}
-	if (renderIntersectedBoxBool) {
-		boxMain.renderLeafBoxes(flycamera, scene_light, true);
-	}
+    if (renderBoxBool) {
+        boxMain.renderLeafBoxes(flycamera, scene_light, false);
+    }
+    if (renderIntersectedBoxBool) {
+        boxMain.renderLeafBoxes(flycamera, scene_light, true);
+    }
 
-	/*Eigen::Vector3f shape = boxMain.getShape(mesh.getShapeModelMatrix());
-	Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
-	bounding.resetModelMatrix();
-	bounding.modelMatrix()->translate(mesh.getShapeModelMatrix() * ((boxMain.getVmax() + boxMain.getVmin())/2));
-	bounding.setColor(Eigen::Vector4f(0.1, 1, 0.4, 0.1));
-	bounding.renderLines();
-	bounding.render(flycamera, scene_light);*/
+    /*Eigen::Vector3f shape = boxMain.getShape(mesh.getShapeModelMatrix());
+    Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
+    bounding.resetModelMatrix();
+    bounding.modelMatrix()->translate(mesh.getShapeModelMatrix() * ((boxMain.getVmax() + boxMain.getVmin())/2));
+    bounding.setColor(Eigen::Vector4f(0.1, 1, 0.4, 0.1));
+    bounding.renderLines();
+    bounding.render(flycamera, scene_light);*/
 
     // render the scene using OpenGL and one light source
     phong.render(mesh, flycamera, scene_light);
@@ -193,23 +261,23 @@ void Flyscene::paintGL(void) {
     float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 0.6f : 0.4f) -
                (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 0.6f : 0.4f);
 
-	//This code only shows the leaf boundingBoxes when B is pressed.
-	renderBoxBool = false;
-	renderIntersectedBoxBool = false;
-	if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) renderBoxBool = true;
-	if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) renderIntersectedBoxBool = true;
+    //This code only shows the leaf boundingBoxes when B is pressed.
+    renderBoxBool = false;
+    renderIntersectedBoxBool = false;
+    if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) renderBoxBool = true;
+    if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) renderIntersectedBoxBool = true;
 
     flycamera.translate(dx, dy, dz);
 }
 
-void Flyscene::startDebugRay(const Eigen::Vector2f& mouseCoords) {
+void Flyscene::startDebugRay(const Eigen::Vector2f &mouseCoords) {
 
     rays.clear();
 
     // from pixel position to world coordinates
     Eigen::Vector3f screen_pos = flycamera.screenToWorld(mouseCoords);
 
-	std::vector<int> indices;
+    std::vector<int> indices;
     const Eigen::Vector3f &origin = flycamera.getCenter();
     boxMain.intersectingBoxes(origin, screen_pos, indices);
 
@@ -219,7 +287,7 @@ void Flyscene::startDebugRay(const Eigen::Vector2f& mouseCoords) {
     createDebugRay(origin, dir, 0);
 }
 
-void Flyscene::createDebugRay(const Eigen::Vector3f& origin, const Eigen::Vector3f& direction, int recursionDepth) {
+void Flyscene::createDebugRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, int recursionDepth) {
 
     auto currentRay = Tucano::Shapes::Cylinder(0.1, 1.0, 16, 64);
 
@@ -236,7 +304,7 @@ void Flyscene::createDebugRay(const Eigen::Vector3f& origin, const Eigen::Vector
     Eigen::Vector3f reflection;
     Eigen::Vector3f refraction;
 
-    if(doesIntersect(origin, direction, faceId, hitPoint, reflection, refraction) && recursionDepth < MAXDEBUGRECURSION) {
+    if (doesIntersect(origin, direction, faceId, hitPoint, reflection, refraction) && recursionDepth < MAXDEBUGRECURSION) {
 
         const auto lengthRay = (origin - hitPoint).norm();
         currentRay.setSize(0.005, lengthRay);
@@ -253,9 +321,10 @@ void Flyscene::createDebugRay(const Eigen::Vector3f& origin, const Eigen::Vector
     rays.emplace_back(currentRay);
 }
 
-void Flyscene::raytraceScene(int width, int height) {
+void Flyscene::raytraceScene() {
 
 #ifdef TIMESTAMPING
+    std::cout << "-------------------------" << std::endl;
     std::cout << "Starting ray tracing ..." << std::endl;
 
     std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
@@ -265,15 +334,12 @@ void Flyscene::raytraceScene(int width, int height) {
 #endif
 
     // if no width or height passed, use dimensions of current viewport
-    Eigen::Vector2i image_size(width, height);
-    if (width == 0 || height == 0) {
-        image_size = flycamera.getViewportSize();
-    }
+    Eigen::Vector2i image_size = flycamera.getViewportSize();
 
     // create 2d vector to hold pixel colors and resize to match image size
     vector<vector<Eigen::Vector3f>> pixel_data;
-    int xSize = image_size[0];
-    int ySize = image_size[1];
+    int &xSize = image_size[0];
+    int &ySize = image_size[1];
     pixel_data.resize(ySize);
     for (int i = 0; i < ySize; ++i)
         pixel_data[i].resize(image_size[0]);
@@ -288,7 +354,7 @@ void Flyscene::raytraceScene(int width, int height) {
     // origin of the ray is always the camera center
     Eigen::Vector3f origin = flycamera.getCenter();
 
-     const auto threadCount = thread::hardware_concurrency();
+    const auto threadCount = thread::hardware_concurrency();
 //    const auto threadCount = 1;
 
     vector<thread> threads;
@@ -332,32 +398,30 @@ void Flyscene::raytraceScene(int width, int height) {
 #endif
 }
 
-Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& origin, const Eigen::Vector3f& hitPosition) {
+Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &origin, const Eigen::Vector3f &hitPosition) {
 
     Eigen::Vector3f color = Eigen::Vector3f(0, 0, 0);
 
-    Tucano::Face face = mesh.getFace(faceIndex);
-
-    int materialIndex = face.material_id;
+    int &materialIndex = precomputedData.faceMaterialIds[faceIndex];
     if (materialIndex == -1) {
         return color;
     }
 
-    Tucano::Material::Mtl material = materials[materialIndex];
+    Tucano::Material::Mtl &material = materials[materialIndex];
 
-    Eigen::Vector3f lightIntensity = Eigen::Vector3f(1, 1, 1);
+    const Eigen::Vector3f lightIntensity = Eigen::Vector3f(1, 1, 1);
 
     // Interpolating the normal
-    const auto currVertexIds = face.vertex_ids;
+    const auto &currVertexIds = precomputedData.faceVertexIds[faceIndex];
 
     // TODO add drawing of why this way of calculating is logical
-    const Eigen::Vector3f v0 = precomputedData.vertices[currVertexIds[0]];
-    const Eigen::Vector3f v1 = precomputedData.vertices[currVertexIds[1]];
-    const Eigen::Vector3f v2 = precomputedData.vertices[currVertexIds[2]];
+    const Eigen::Vector3f &v0 = precomputedData.vertices[get<0>(currVertexIds)];
+    const Eigen::Vector3f &v1 = precomputedData.vertices[get<1>(currVertexIds)];
+    const Eigen::Vector3f &v2 = precomputedData.vertices[get<2>(currVertexIds)];
 
-    const auto v0Normal = precomputedData.normals[currVertexIds[0]];
-    const auto v1Normal = precomputedData.normals[currVertexIds[1]];
-    const auto v2Normal = precomputedData.normals[currVertexIds[2]];
+    const Eigen::Vector3f &v0Normal = precomputedData.normals[get<0>(currVertexIds)];
+    const Eigen::Vector3f &v1Normal = precomputedData.normals[get<1>(currVertexIds)];
+    const Eigen::Vector3f &v2Normal = precomputedData.normals[get<2>(currVertexIds)];
 
     const auto areaV1V2Hitpoint = (v1 - hitPosition).cross(v2 - hitPosition).norm() * 0.5;
     const auto areaV0V2Hitpoint = (v0 - hitPosition).cross(v2 - hitPosition).norm() * 0.5;
@@ -368,7 +432,7 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
     faceNormal.normalize();
 
     // Iterate over all the present lights
-    for (const Eigen::Vector3f& lightPosition : lights) {
+    for (const Eigen::Vector3f &lightPosition : lights) {
 
         Eigen::Vector3f lightDirection = (lightPosition - hitPosition).normalized();
 
@@ -400,7 +464,7 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f& ori
     return color;
 }
 
-Eigen::Vector3f Flyscene::traceRay(Eigen::Vector3f &origin, Eigen::Vector3f &dest, int recursionDepth) {
+Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &dest, int recursionDepth) {
 
     Eigen::Vector3f hitPoint;
     int faceId;
@@ -440,15 +504,12 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
 #endif
 
         if (recursionDepth < MAXRECURSION) {
-            Tucano::Face face = mesh.getFace(faceId);
-            Eigen::Vector3f faceNormal = face.normal.normalized();
-
-            int materialIndex = face.material_id;
+            int &materialIndex = precomputedData.faceMaterialIds[faceId];
             if (materialIndex == -1) {
                 return localShading;
             }
 
-            Tucano::Material::Mtl material = materials[materialIndex];
+            Tucano::Material::Mtl &material = materials[materialIndex];
 
             const auto &specular = material.getSpecular();
             float EPSILON = 0.4f;
@@ -528,20 +589,20 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
     bool hasIntersected = false;
     float currentMaxDepth = numeric_limits<float>::max();
 
-    for (auto& i : intersectingFaces) {
+    for (auto &i : intersectingFaces) {
         // Retrieve the current face and its vertex ids
-        const auto& currVertexIds = precomputedData.faceVertexIds[i];
-        
+        const auto &currVertexIds = precomputedData.faceVertexIds[i];
+
         // Create the vertices
-        const auto& v0 = precomputedData.vertices[get<0>(currVertexIds)];
-        const auto& v1 = precomputedData.vertices[get<1>(currVertexIds)];
-        const auto& v2 = precomputedData.vertices[get<2>(currVertexIds)];
+        const Eigen::Vector3f &v0 = precomputedData.vertices[get<0>(currVertexIds)];
+        const Eigen::Vector3f &v1 = precomputedData.vertices[get<1>(currVertexIds)];
+        const Eigen::Vector3f &v2 = precomputedData.vertices[get<2>(currVertexIds)];
 
         // Get normal (implemented by Tucano)
-        const auto& normal = precomputedData.faceNormals[i];
+        const Eigen::Vector3f &normal = precomputedData.faceNormals[i];
 
         // Get distance from triangle to origin (see slide 27)
-        const auto originDistance = normal.dot(v0);
+        const auto &originDistance = precomputedData.faceOriginDistance[i];
 
         // Compute tHit (see slide 10)
         const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
@@ -583,19 +644,15 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
 }
 
 void Flyscene::tracePixels(int threadId, int threads, Eigen::Vector3f &origin, vector<vector<Eigen::Vector3f>> &pixel_data,
-                          Eigen::Vector2i &image_size) {
+                           Eigen::Vector2i &image_size) {
 
-    int xSize = image_size[0];
-    int ySize = image_size[1];
+    const int &xSize = image_size[0];
+    const int &ySize = image_size[1];
 
     for (int x = 0; x < xSize; x++) {
         for (int y = threadId; y < ySize; y += threads) {
             // create a ray from the camera passing through the pixel (i,j)
-            Eigen::Vector3f screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
-
-#ifdef LOGGING
-            //            std::cout << "Tracing XY (" << x << ", " << y << ")" << std::endl;
-#endif
+            const Eigen::Vector3f &screen_coords = precomputedData.screenToWorld[x * ySize + y];
 
             // launch raytracing for the given ray and write result to pixel data
             const Eigen::Vector3f &colorOut = traceRay(origin, screen_coords, 0);
@@ -606,28 +663,30 @@ void Flyscene::tracePixels(int threadId, int threads, Eigen::Vector3f &origin, v
 }
 
 std::vector<Eigen::Vector3f> Flyscene::boundingVectors() {
-	int num_verts = mesh.getNumberOfVertices();
-	Eigen::Vector3f vmin = {
-            precomputedData.vertices[0].x(),
-            precomputedData.vertices[0].y(),
-            precomputedData.vertices[0].z()
-	};
+    int num_verts = mesh.getNumberOfVertices();
 
-	Eigen::Vector3f vmax = {
-	        precomputedData.vertices[0].x(),
-            precomputedData.vertices[0].y(),
-            precomputedData.vertices[0].z()
-	};
-	for (int i = 0; i < num_verts; ++i) {
-		const auto vertex = precomputedData.vertices[i];
-		vmin(0) = min(vmin.x(), vertex.x());
-		vmax(0) = max(vmax.x(), vertex.x());
+    const Eigen::Vector3f &firstVertex = precomputedData.vertices[0];
+    Eigen::Vector3f vmin = {
+            firstVertex.x(),
+            firstVertex.y(),
+            firstVertex.z()
+    };
 
-		vmin(1) = min(vmin.y(), vertex.y());
-		vmax(1) = max(vmax.y(), vertex.y());
+    Eigen::Vector3f vmax = {
+            firstVertex.x(),
+            firstVertex.y(),
+            firstVertex.z()
+    };
+    for (int i = 0; i < num_verts; ++i) {
+        const Eigen::Vector3f &vertex = precomputedData.vertices[i];
+        vmin(0) = min(vmin.x(), vertex.x());
+        vmax(0) = max(vmax.x(), vertex.x());
 
-		vmin(2) = min(vmin.z(), vertex.z());
-		vmax(2) = max(vmax.z(), vertex.z());
-	}
-	return { vmin, vmax };
+        vmin(1) = min(vmin.y(), vertex.y());
+        vmax(1) = max(vmax.y(), vertex.y());
+
+        vmin(2) = min(vmin.z(), vertex.z());
+        vmax(2) = max(vmax.z(), vertex.z());
+    }
+    return {vmin, vmax};
 }
