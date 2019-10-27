@@ -127,8 +127,8 @@ public:
         boundingBox lowerBox = boundingBox(vmin, lowerVmax);
         boundingBox upperBox = boundingBox(upperVmin, vmax);
 
-        float lowerMax = std::numeric_limits<float>::min();
-        float upperMin = std::numeric_limits<float>::max();
+        float lowerMax = avg;
+        float upperMin = avg;
 
         for (auto &it : faceIndices) {
             const auto vertexIds = precomputedData.faceVertexIds[it];
@@ -142,8 +142,8 @@ public:
             } else if (first < avg && sec < avg && third < avg) {
                 lowerBox.addFaceIndex(it);
             } else {
-                lowerMax = max(first, max(sec, max(third, avg)));
-                upperMin = min(first, min(sec, min(third, avg)));
+                lowerMax = max(first, max(sec, max(third, lowerMax)));
+                upperMin = min(first, min(sec, min(third, upperMin)));
 
                 upperBox.addFaceIndex(it);
                 lowerBox.addFaceIndex(it);
