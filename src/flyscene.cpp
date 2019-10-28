@@ -230,11 +230,7 @@ void Flyscene::paintGL() {
 
 
     if (splitPreviewDepth != -1) {
-        if (renderIntersection) {
-            boxMain.renderLeafBoxes(flycamera, scene_light, true, splitPreviewDepth, 0);
-        } else {
-            boxMain.renderLeafBoxes(flycamera, scene_light, false, splitPreviewDepth, 0);
-        }
+        boxMain.renderLeafBoxes(flycamera, scene_light, renderIntersection, splitPreviewDepth, 0);
     }
 
     // render the scene using OpenGL and one light source
@@ -517,13 +513,13 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
             Tucano::Material::Mtl &material = materials[materialIndex];
 
             const auto &specular = material.getSpecular();
-            float EPSILON = 0.4f;
+            float EPSILON = 0.01f;
             if (specular.x() > EPSILON || specular.y() > EPSILON || specular.z() > EPSILON) {
 
                 // Reflection
                 reflection.normalize();
 
-                const Eigen::Vector3f reflectionShading = traceRay(hitPoint + reflection, reflection, recursionDepth + 1);
+                const Eigen::Vector3f reflectionShading = traceRay(hitPoint + 0.01f * reflection, reflection, recursionDepth + 1);
                 const Eigen::Vector3f weightedReflectionShading = {
                 reflectionShading.x() * specular.x(),
                 reflectionShading.y() * specular.y(),
