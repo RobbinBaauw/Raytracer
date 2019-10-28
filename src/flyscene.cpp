@@ -179,7 +179,7 @@ void Flyscene::precomputeLights() {
     precomputedData.lights = vector<vector<Eigen::Vector3f>>(lights.size());
 
 #ifdef HARDSHADOW
-    for (int i = 0; i < lights.size(); i++) {
+    for (unsigned int i = 0; i < lights.size(); i++) {
         const auto &light = lights[i];
         vector<Eigen::Vector3f> lightPositions({light});
         precomputedData.lights[i] = lightPositions;
@@ -187,7 +187,7 @@ void Flyscene::precomputeLights() {
 #else
     const float radius = 0.3;
 
-    for (int i = 0; i < lights.size(); i++) {
+    for (unsigned int i = 0; i < lights.size(); i++) {
 
         const auto &light = lights[i];
 
@@ -708,10 +708,10 @@ Eigen::Vector3f Flyscene::getLightIntensity(const Eigen::Vector3f &hitPosition) 
     Eigen::Vector3f refraction;
 
     // For each light
-    for (auto &lightPositions : precomputedData.lights) {
+    for (const auto &lightPositions : precomputedData.lights) {
         float pointsReachingLight = 0;
 
-        for (Eigen::Vector3f lightPosition : lightPositions) {
+        for (const Eigen::Vector3f &lightPosition : lightPositions) {
             if (!doesIntersect(hitPosition, lightPosition, faceId, hitPoint, reflection, refraction)) {
                 pointsReachingLight++;
             }
