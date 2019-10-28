@@ -20,18 +20,10 @@
 static int nodeCount = 0;
 static int leafCount = 0;
 
-static int deleteCount = 0;
-
 class boundingBox {
 private:
     //The indices of all the faces contained in this boundingBox
     std::vector<int> faceIndices;
-
-    //The minimum corner of the boundingBox
-    Eigen::Vector3f vmin;
-
-    //The maximum corner of the boundingBox
-    Eigen::Vector3f vmax;
 
     //The children of the boundingBox, either 0 or 2. Formed by splitting the box in two along its biggest side
     std::vector<boundingBox> children;
@@ -42,6 +34,12 @@ private:
 public:
     bool hitByRay = false;
 
+    //The minimum corner of the boundingBox
+    Eigen::Vector3f vmin;
+
+    //The maximum corner of the boundingBox
+    Eigen::Vector3f vmax;
+
     boundingBox() = default;
 
     /**
@@ -49,45 +47,22 @@ public:
      * @param smallest corner
      * @param biggest corner
      */
-    boundingBox(Eigen::Vector3f& vmin, Eigen::Vector3f& vmax) : vmin(vmin), vmax(vmax) {
+    boundingBox(Eigen::Vector3f &vmin, Eigen::Vector3f &vmax) : vmin(vmin), vmax(vmax) {
     }
 
     /**
      * @brief Adds a faceIndex to the list of indices
      * @param index of the face to be added
      */
-    void addFaceIndex(int faceIndex) {
-        faceIndices.push_back(faceIndex);
-    }
-
-    std::vector<boundingBox> getChildren() {
-        return children;
-    }
-
-    /**
-     * @brief Stores the children boxes of this node.
-     * @param box on the smaller side
-     * @param box on the bigger side
-     */
-    void setChildren(boundingBox& lowerBox, boundingBox& upperBox) {
-        children = {
-                lowerBox, upperBox
-        };
-    }
-
-    void setVminIndex(float min, int index) {
-        vmin(index) = min;
-    }
-
-    void setVmaxIndex(float max, int index) {
-        vmax(index) = max;
+    inline void addFaceIndex(int faceIndex) {
+        faceIndices.emplace_back(faceIndex);
     }
 
     /**
      * @brief The function that splits the box in two on the average of the biggest side
      * @param The used mesh as a reference "std::ref(mesh)"
      */
-    void splitBox(PrecomputedData& precomputedData) {
+    void splitBox(PrecomputedData &precomputedData) {
         ++nodeCount;
 
         //This will be a recursive function so we will need a basecase, the minimum amount of faces alowed in a box
@@ -96,7 +71,12 @@ public:
             return;
         }
         //Get the index of the longest side of the box
-        std::vector<float> side = {vmax(0) - vmin(0), vmax(1) - vmin(1), vmax(2) - vmin(2)};
+        std::vector<float> side = {
+                vmax(0) - vmin(0),
+                vmax(1) - vmin(1),
+                vmax(2) - vmin(2)
+        };
+
         int sideIndex = std::max_element(side.begin(), side.end()) - side.begin();
 
         //Calculate the average point inside the box
@@ -105,22 +85,23 @@ public:
         for (auto &it : faceIndices) {
             const auto vertexIds = precomputedData.faceVertexIds[it];
             sum += precomputedData.vertices[get<0>(vertexIds)](sideIndex) +
-                    precomputedData.vertices[get<1>(vertexIds)](sideIndex) +
-                    precomputedData.vertices[get<2>(vertexIds)](sideIndex);
+                   precomputedData.vertices[get<1>(vertexIds)](sideIndex) +
+                   precomputedData.vertices[get<2>(vertexIds)](sideIndex);
 
             weight += 3;
         }
+
         float avg = sum / weight;
-        /*std::cout << "Avg: " << avg << std::endl;
-        std::cout << "Longst side " << sideIndex << std::endl;*/
 
         //Create the new upper corner for the lower boundingBox
         Eigen::Vector3f lowerVmax = vmax;
+
         //Setting avg for now will change
         lowerVmax(sideIndex) = avg;
 
         //Create the new lower corner for the upper boundinBox
         Eigen::Vector3f upperVmin = vmin;
+
         //Setting avg for now will change later in scope
         upperVmin(sideIndex) = avg;
 
@@ -142,22 +123,21 @@ public:
             } else if (first < avg && sec < avg && third < avg) {
                 lowerBox.addFaceIndex(it);
             } else {
-                lowerMax = max(first, max(sec, max(third, lowerMax)));
-                upperMin = min(first, min(sec, min(third, upperMin)));
-
-                upperBox.addFaceIndex(it);
                 lowerBox.addFaceIndex(it);
+                lowerMax = max(first, max(sec, max(third, lowerMax)));
             }
         }
 
-        upperBox.setVminIndex(upperMin, sideIndex);
-        lowerBox.setVmaxIndex(lowerMax, sideIndex);
+        upperBox.vmin(sideIndex) = upperMin;
+        lowerBox.vmax(sideIndex) = lowerMax;
 
         //Perform recursive splitting of the boxes but only if the split actually did something.
         if (lowerBox.faceIndices.size() < 0.8 * faceIndices.size() && upperBox.faceIndices.size() < 0.8 * faceIndices.size()) {
             lowerBox.splitBox(precomputedData);
             upperBox.splitBox(precomputedData);
-            setChildren(lowerBox, upperBox);
+            children = {
+                    lowerBox, upperBox
+            };
         } else {
             ++leafCount;
         }
@@ -198,12 +178,6 @@ public:
                 auto b = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
                 bounding.setColor(Eigen::Vector4f(r, g, b, 0.1));
                 bounding.render(flycamera, scene_light);
-
-                if (deleteCount < 1) {
-                    std::cout << "modelmatrix" << bounding.getModelMatrix().matrix() << std::endl;
-                    std::cout << "shapematrix" << bounding.getShapeMatrix().matrix() << std::endl;
-                    ++deleteCount;
-                }
             }
         }
     }
