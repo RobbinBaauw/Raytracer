@@ -57,8 +57,6 @@ void Flyscene::initialize(int width, int height) {
     start = std::chrono::steady_clock::now();
 #endif
 
-    startDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
-
 #ifdef TIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -94,6 +92,8 @@ void Flyscene::initialize(int width, int height) {
     }
 
     boxMain.splitBox(precomputedData);
+
+    startDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
 
 #ifdef TIMESTAMPING
     end = std::chrono::steady_clock::now();
