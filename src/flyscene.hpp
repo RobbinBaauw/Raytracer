@@ -94,7 +94,9 @@ public:
 
     void precomputeData();
 
-	/**
+    void precomputeLights();
+
+    /**
 	* @brief function which calculates soft shadows.
 	*/
 	Eigen::Vector3f getLightIntensity(const Eigen::Vector3f &hitPosition);

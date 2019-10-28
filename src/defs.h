@@ -4,6 +4,8 @@
 #include <GL/glew.h>
 #include <Eigen/Eigen>
 
+const int MAXSOFTSHADOWPOINTS = 12;
+
 struct PrecomputedData {
     Eigen::Vector3f * vertices;
     Eigen::Vector3f * normals;
@@ -16,7 +18,7 @@ struct PrecomputedData {
 
     Eigen::Affine3f shapeModelMatrix;
 
-    Eigen::Vector3f * screenToWorld; // Compute location by x * ySize + y
+    vector<vector<Eigen::Vector3f>> lights;
 };
 
 #endif //RAYTRACING_DEFS_H

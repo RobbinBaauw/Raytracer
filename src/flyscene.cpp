@@ -5,13 +5,11 @@
 #include <chrono>
 #include "boundingBox.h"
 
-#define SOFTSHADOW
+//#define HARDSHADOW
 
 #define TIMESTAMPING
 //#define DETAILTIMESTAMPING
 //#define LOGGING
-
-const int MAXSOFTSHADOWPOINTS = 12;
 
 const int MAXRECURSION = 5;
 const int MAXDEBUGRECURSION = 10;
@@ -34,9 +32,7 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/shadowmodel.obj");
-    //Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
-
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
 
 #ifdef TIMESTAMPING
     end = std::chrono::steady_clock::now();
@@ -76,6 +72,7 @@ void Flyscene::initialize(int width, int height) {
 #endif
 
     precomputeData();
+    precomputeLights();
 
 #ifdef TIMESTAMPING
     end = std::chrono::steady_clock::now();
@@ -120,17 +117,6 @@ void Flyscene::initialize(int width, int height) {
     createDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
 
     glEnable(GL_DEPTH_TEST);
-
-    // for (int i = 0; i<mesh.getNumberOfFaces(); ++i){
-    //   Tucano::Face face = mesh.getFace(i);
-    //   for (int j =0; j<face.vertex_ids.size(); ++j){
-    //     std::cout<<"vid "<<j<<" "<<face.vertex_ids[j]<<std::endl;
-    //     std::cout<<"vertex "<<mesh.getVertex(face.vertex_ids[j]).transpose()<<std::endl;
-    //     std::cout<<"normal "<<mesh.getNormal(face.vertex_ids[j]).transpose()<<std::endl;
-    //   }
-    //   std::cout<<"mat id "<<face.material_id<<std::endl<<std::endl;
-    //   std::cout<<"face   normal "<<face.normal.transpose() << std::endl << std::endl;
-    // }
 }
 
 void Flyscene::precomputeData() {
@@ -145,11 +131,6 @@ void Flyscene::precomputeData() {
     precomputedData.faceNormalizedNormals = new Eigen::Vector3f[mesh.getNumberOfFaces()];
     precomputedData.faceMaterialIds = new int[mesh.getNumberOfFaces()];
     precomputedData.faceVertexIds = new std::tuple<int, int, int>[mesh.getNumberOfFaces()];
-
-    Eigen::Vector2i image_size = flycamera.getViewportSize();
-    const auto &xSize = image_size[0];
-    const auto &ySize = image_size[1];
-    precomputedData.screenToWorld = new Eigen::Vector3f[xSize * ySize];
 
     auto nrOfFaces = mesh.getNumberOfFaces();
     for (int i = 0; i < nrOfFaces; i++) {
@@ -192,14 +173,37 @@ void Flyscene::precomputeData() {
                 currVertexIds[2]
         };
     }
+}
 
+void Flyscene::precomputeLights() {
+    precomputedData.lights = vector<vector<Eigen::Vector3f>>(lights.size());
 
-    flycamera.reComputeViewMatrix();
-    for (int x = 0; x < xSize; x++) {
-        for (int y = 0; y < ySize; y++) {
-            precomputedData.screenToWorld[x * ySize + y] = flycamera.screenToWorld(Eigen::Vector2f(x, y));
-        }
+#ifdef HARDSHADOW
+    for (int i = 0; i < lights.size(); i++) {
+        const auto &light = lights[i];
+        vector<Eigen::Vector3f> lightPositions({light});
+        precomputedData.lights[i] = lightPositions;
     }
+#else
+    const float radius = 0.3;
+
+    for (int i = 0; i < lights.size(); i++) {
+
+        const auto &light = lights[i];
+
+        vector<Eigen::Vector3f> lightPositions(MAXSOFTSHADOWPOINTS);
+        for (int n = 0; n < MAXSOFTSHADOWPOINTS; n++) {
+            float theta = (2.0f * (float) n * (float) M_PI) / MAXSOFTSHADOWPOINTS;
+            float phi = acos(1 - 2 * ((float) n / (MAXSOFTSHADOWPOINTS * (float) M_PI)));
+            float x = radius * sin(phi) * cos(theta);
+            float y = radius * sin(phi) * sin(theta);
+            float z = radius * cos(phi);
+            lightPositions[n] = Eigen::Vector3f(light[0] + x, light[1] + y, light[2] + z);
+        }
+
+        precomputedData.lights[i] = lightPositions;
+    }
+#endif
 }
 
 void Flyscene::paintGL() {
@@ -230,14 +234,6 @@ void Flyscene::paintGL() {
     if (renderIntersectedBoxBool) {
         boxMain.renderLeafBoxes(flycamera, scene_light, true);
     }
-
-    /*Eigen::Vector3f shape = boxMain.getShape(mesh.getShapeModelMatrix());
-    Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
-    bounding.resetModelMatrix();
-    bounding.modelMatrix()->translate(mesh.getShapeModelMatrix() * ((boxMain.getVmax() + boxMain.getVmin())/2));
-    bounding.setColor(Eigen::Vector4f(0.1, 1, 0.4, 0.1));
-    bounding.renderLines();
-    bounding.render(flycamera, scene_light);*/
 
     // render the scene using OpenGL and one light source
     phong.render(mesh, flycamera, scene_light);
@@ -414,7 +410,7 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
         return color;
     }*/
 
-	Eigen::Vector3f lightIntensity = getLightIntensity(hitPosition);
+    Eigen::Vector3f lightIntensity = getLightIntensity(hitPosition);
 
     Tucano::Material::Mtl &material = materials[materialIndex];
 
@@ -704,8 +700,7 @@ std::vector<Eigen::Vector3f> Flyscene::boundingVectors() {
 
 Eigen::Vector3f Flyscene::getLightIntensity(const Eigen::Vector3f &hitPosition) {
 
-    const float radius = 0.3;
-    float amount = 0;
+    float lightIntensity = 0;
 
     Eigen::Vector3f hitPoint;
     int faceId;
@@ -713,30 +708,20 @@ Eigen::Vector3f Flyscene::getLightIntensity(const Eigen::Vector3f &hitPosition) 
     Eigen::Vector3f refraction;
 
     // For each light
-	for (Eigen::Vector3f &light : lights) {
+    for (auto &lightPositions : precomputedData.lights) {
+        float pointsReachingLight = 0;
 
-		Eigen::Vector3f lightPositions[MAXSOFTSHADOWPOINTS];
-		for (int n = 0; n < MAXSOFTSHADOWPOINTS; n++) {
-			float theta = (2 * n * M_PI) / MAXSOFTSHADOWPOINTS;
-			float phi = acos(1 - 2 * (n / (MAXSOFTSHADOWPOINTS * M_PI)));
-			float x = radius * sin(phi) * cos(theta);
-			float y = radius * sin(phi) * sin(theta);
-			float z = radius * cos(phi);
-			lightPositions[n] = Eigen::Vector3f(light[0] + x, light[1] + y, light[2] + z);
-		}
-		float tempAmount = 0;
+        for (Eigen::Vector3f lightPosition : lightPositions) {
+            if (!doesIntersect(hitPosition, lightPosition, faceId, hitPoint, reflection, refraction)) {
+                pointsReachingLight++;
+            }
+        }
 
-		for (int n = 0; n < MAXSOFTSHADOWPOINTS; n++) {
-			if (!doesIntersect(hitPosition, lightPositions[n], faceId, hitPoint, reflection, refraction)) tempAmount++;
-		}
-
-        amount += tempAmount / MAXSOFTSHADOWPOINTS;
+        lightIntensity += pointsReachingLight / lightPositions.size();
     }
 
     // Calculate the light intensity and return
-    float intensity = 0;
     float maximum = 1;
-	intensity = amount;
-    intensity = min(intensity, maximum);
-    return Eigen::Vector3f(intensity, intensity, intensity);
+    lightIntensity = min(lightIntensity, maximum);
+    return {lightIntensity, lightIntensity, lightIntensity};
 }
