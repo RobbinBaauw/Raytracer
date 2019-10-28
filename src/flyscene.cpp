@@ -304,7 +304,7 @@ void Flyscene::createDebugRay(const Eigen::Vector3f &origin, const Eigen::Vector
     Eigen::Vector3f reflection;
     Eigen::Vector3f refraction;
 
-    if (doesIntersect(origin, direction, faceId, hitPoint, reflection, refraction) && recursionDepth < MAXDEBUGRECURSION) {
+    if (intersects(origin, direction, faceId, hitPoint, reflection, refraction) && recursionDepth < MAXDEBUGRECURSION) {
 
         const auto lengthRay = (origin - hitPoint).norm();
         currentRay.setSize(0.005, lengthRay);
@@ -402,13 +402,10 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
 
     Eigen::Vector3f color = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
 
-    Tucano::Face face = mesh.getFace(faceIndex);
-	
-
-    int materialIndex = face.material_id;
-   /* if (materialIndex == -1) {
-        return color;
-    }*/
+    int &materialIndex = precomputedData.faceMaterialIds[faceIndex];
+    if (materialIndex == -1) {
+        return {0.5f, 0.5f, 0.5f};
+    }
 
     Eigen::Vector3f lightIntensity = getLightIntensity(hitPosition);
 
@@ -496,7 +493,7 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
     std::chrono::microseconds diff;
 #endif
 
-    bool b = doesIntersect(origin, direction, faceId, hitPoint, reflection, refraction);
+    bool b = intersects(origin, direction, faceId, hitPoint, reflection, refraction);
 
 #ifdef DETAILTIMESTAMPING
     end = std::chrono::steady_clock::now();
@@ -575,9 +572,61 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
     }
 }
 
-bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
-                             int &faceId, Eigen::Vector3f &hitpoint,
-                             Eigen::Vector3f &reflection, Eigen::Vector3f &refraction) {
+bool Flyscene::intersects(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
+                          int &faceId, Eigen::Vector3f &hitpoint,
+                          Eigen::Vector3f &reflection, Eigen::Vector3f &refraction) {
+
+    float currentMaxDepth = numeric_limits<float>::max();
+
+    const bool intersectsSphere = sphereIntersection(currentMaxDepth, origin, direction, faceId, hitpoint, reflection, refraction);
+    const bool intersectsTriangle = triangleIntersection(currentMaxDepth, origin, direction, faceId, hitpoint, reflection, refraction);
+
+    return intersectsSphere || intersectsTriangle;
+}
+
+bool Flyscene::sphereIntersection(float &currentMaxDepth, const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
+                                  int &faceId, Eigen::Vector3f &hitpoint,
+                                  Eigen::Vector3f &reflection, Eigen::Vector3f &refraction) {
+
+    bool hasIntersected = false;
+
+    // TODO finish, note that the currentMaxDepth should be the same measurement as in intersectTriangle
+    // https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-sphere-intersection :)
+
+//    for (auto &sphere : spheres) {
+//        const Eigen::Vector3f &originToSphere = sphere.center - origin;
+//        const float distOriginSphere = originToSphere.norm();
+//
+//        float a = direction.norm();
+//        float b = 2.0f * originToSphere.dot(direction);
+//        float c = distOriginSphere - sphere.radius * sphere.radius;
+//
+//        float D = b * b - 4 * a * c;
+//
+//        if (D < 1 || distOriginSphere >= currentMaxDepth) continue;
+//
+//        hasIntersected = true;
+//        currentMaxDepth = distOriginSphere;
+//
+//        const auto DSquare = sqrt(D);
+//        const auto aSummed = a + a;
+//
+//        const auto solution1 = (-b + DSquare) / aSummed;
+//        const auto solution2 = (-b - DSquare) / aSummed;
+//
+//        reflection = direction - 2 * direction.dot(normal) * normal;
+//        refraction = Eigen::Vector3f(0, 0, 0); // TODO
+//
+//        hitpoint = hitPoint;
+//        faceId = -1;
+//    }
+
+    return hasIntersected;
+}
+
+bool Flyscene::triangleIntersection(float &currentMaxDepth, const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
+                                    int &faceId, Eigen::Vector3f &hitpoint,
+                                    Eigen::Vector3f &reflection, Eigen::Vector3f &refraction) {
 
 #ifdef DETAILTIMESTAMPING
     std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
@@ -597,11 +646,8 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
 #endif
 
     bool hasIntersected = false;
-    float currentMaxDepth = numeric_limits<float>::max();
 
     for (auto &i : intersectingFaces) {
-
-        // Get normal (implemented by Tucano)
         const Eigen::Vector3f &normal = precomputedData.faceNormals[i];
 
         // Get distance from triangle to origin (see slide 27)
@@ -610,9 +656,7 @@ bool Flyscene::doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3
         // Compute tHit (see slide 10)
         const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
 
-        if (tHit < 0.00001f || tHit > currentMaxDepth) {
-            continue;
-        }
+        if (tHit < 0.00001f || tHit > currentMaxDepth) continue;
 
         // Retrieve the current face and its vertex ids
         const auto &currVertexIds = precomputedData.faceVertexIds[i];
@@ -712,7 +756,7 @@ Eigen::Vector3f Flyscene::getLightIntensity(const Eigen::Vector3f &hitPosition) 
         float pointsReachingLight = 0;
 
         for (const Eigen::Vector3f &lightPosition : lightPositions) {
-            if (!doesIntersect(hitPosition, lightPosition, faceId, hitPoint, reflection, refraction)) {
+            if (!intersects(hitPosition, lightPosition, faceId, hitPoint, reflection, refraction)) {
                 pointsReachingLight++;
             }
         }

@@ -81,9 +81,18 @@ public:
      */
     Eigen::Vector3f traceRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, int recursionDepth);
 
-    bool doesIntersect(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
-        int &faceId, Eigen::Vector3f &hitpoint,
-        Eigen::Vector3f &reflection, Eigen::Vector3f &refraction
+    bool intersects(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
+                    int &faceId, Eigen::Vector3f &hitpoint,
+                    Eigen::Vector3f &reflection, Eigen::Vector3f &refraction);
+
+    bool triangleIntersection(float &currentMaxDepth, const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
+                              int &faceId, Eigen::Vector3f &hitpoint,
+                              Eigen::Vector3f &reflection, Eigen::Vector3f &refraction
+    );
+
+    bool sphereIntersection(float &currentMaxDepth, const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
+                              int &faceId, Eigen::Vector3f &hitpoint,
+                              Eigen::Vector3f &reflection, Eigen::Vector3f &refraction
     );
 
     void tracePixels(int threadId,
@@ -120,8 +129,11 @@ private:
   // light sources for ray tracing
   vector<Eigen::Vector3f> lights;
 
-  // Scene light represented as a camera
-  Tucano::Camera scene_light;
+    // sheres for ray tracing
+    vector<Sphere> spheres;
+
+    // Scene light represented as a camera
+    Tucano::Camera scene_light;
 
     /// A very thin cylinder to draw a debug ray
     Tucano::Shapes::Cylinder ray = Tucano::Shapes::Cylinder(0.1, 1.0, 16, 64);

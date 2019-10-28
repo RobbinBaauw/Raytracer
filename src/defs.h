@@ -21,4 +21,9 @@ struct PrecomputedData {
     vector<vector<Eigen::Vector3f>> lights;
 };
 
+struct Sphere {
+    Eigen::Vector3f center;
+    float radius;
+};
+
 #endif //RAYTRACING_DEFS_H
