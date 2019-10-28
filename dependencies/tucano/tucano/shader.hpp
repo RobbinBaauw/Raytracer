@@ -32,7 +32,7 @@
 
 using namespace std;
 
-#define TUCANODEBUG
+//#define TUCANODEBUG
 
 namespace Tucano
 {

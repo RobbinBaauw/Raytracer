@@ -20,6 +20,8 @@
 static int nodeCount = 0;
 static int leafCount = 0;
 
+static int depth = 0;
+
 class boundingBox {
 private:
     //The indices of all the faces contained in this boundingBox
@@ -30,6 +32,8 @@ private:
 
     //If we have this amount of faces in a box it shouldn't be split any further
     int baseCase = 50;
+
+    Tucano::Shapes::Box visualization;
 
 public:
     bool hitByRay = false;
@@ -108,28 +112,59 @@ public:
         boundingBox lowerBox = boundingBox(vmin, lowerVmax);
         boundingBox upperBox = boundingBox(upperVmin, vmax);
 
-        float lowerMax = avg;
-        float upperMin = avg;
+        Eigen::Vector3f upperMin = vmax;
+        Eigen::Vector3f upperMax = vmin;
+
+        Eigen::Vector3f lowerMin = vmax;
+        Eigen::Vector3f lowerMax = vmin;
 
         for (auto &it : faceIndices) {
             const auto vertexIds = precomputedData.faceVertexIds[it];
 
-            float first = precomputedData.vertices[get<0>(vertexIds)](sideIndex);
-            float sec = precomputedData.vertices[get<1>(vertexIds)](sideIndex);
-            float third = precomputedData.vertices[get<2>(vertexIds)](sideIndex);
+            const Eigen::Vector3f &v0 = precomputedData.vertices[get<0>(vertexIds)];
+            const Eigen::Vector3f &v1 = precomputedData.vertices[get<1>(vertexIds)];
+            const Eigen::Vector3f &v2 = precomputedData.vertices[get<2>(vertexIds)];
+
+            float first = v0(sideIndex);
+            float sec = v1(sideIndex);
+            float third = v2(sideIndex);
 
             if (first > avg && sec > avg && third > avg) {
                 upperBox.addFaceIndex(it);
-            } else if (first < avg && sec < avg && third < avg) {
-                lowerBox.addFaceIndex(it);
+
+                upperMin = {
+                        min(v0.x(), min(v1.x(), min(v2.x(), upperMin.x()))),
+                        min(v0.y(), min(v1.y(), min(v2.y(), upperMin.y()))),
+                        min(v0.z(), min(v1.z(), min(v2.z(), upperMin.z())))
+                };
+
+                upperMax = {
+                        max(v0.x(), max(v1.x(), max(v2.x(), upperMax.x()))),
+                        max(v0.y(), max(v1.y(), max(v2.y(), upperMax.y()))),
+                        max(v0.z(), max(v1.z(), max(v2.z(), upperMax.z())))
+                };
             } else {
                 lowerBox.addFaceIndex(it);
-                lowerMax = max(first, max(sec, max(third, lowerMax)));
+
+                lowerMin = {
+                        min(v0.x(), min(v1.x(), min(v2.x(), lowerMin.x()))),
+                        min(v0.y(), min(v1.y(), min(v2.y(), lowerMin.y()))),
+                        min(v0.z(), min(v1.z(), min(v2.z(), lowerMin.z())))
+                };
+
+                lowerMax = {
+                        max(v0.x(), max(v1.x(), max(v2.x(), lowerMax.x()))),
+                        max(v0.y(), max(v1.y(), max(v2.y(), lowerMax.y()))),
+                        max(v0.z(), max(v1.z(), max(v2.z(), lowerMax.z())))
+                };
             }
         }
 
-        upperBox.vmin(sideIndex) = upperMin;
-        lowerBox.vmax(sideIndex) = lowerMax;
+        upperBox.vmin = upperMin;
+        upperBox.vmax = upperMax;
+
+        lowerBox.vmin = lowerMin;
+        lowerBox.vmax = lowerMax;
 
         //Perform recursive splitting of the boxes but only if the split actually did something.
         if (lowerBox.faceIndices.size() < 0.8 * faceIndices.size() && upperBox.faceIndices.size() < 0.8 * faceIndices.size()) {
@@ -140,6 +175,27 @@ public:
             };
         } else {
             ++leafCount;
+        }
+
+        Eigen::Vector3f shape = getShape();
+        visualization = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
+        visualization.resetModelMatrix();
+        visualization.modelMatrix()->translate(((vmax + vmin) / 2));
+        auto r = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
+        auto g = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
+        auto b = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
+        visualization.setColor(Eigen::Vector4f(r, g, b, 0.1));
+    }
+
+    void computeDepth() {
+        depth = computeDepth(0);
+    }
+
+    int computeDepth(int currDepth) {
+        if (!children.empty()) {
+            return max(children[0].computeDepth(currDepth + 1), children[1].computeDepth(currDepth + 1));
+        } else {
+            return currDepth;
         }
     }
 
@@ -161,24 +217,20 @@ public:
      * @param shapeModelMatrix, the modelmatrix of the mesh, to translate the cube to the center of the mesh
      * @param onlyIntersected if set to true we only show the leaves that are hit by the debug ray
      */
-    void renderLeafBoxes(const Tucano::Flycamera &flycamera, const Tucano::Camera &scene_light, const bool onlyIntersected) {
-        if (!children.empty()) {
-            children[0].renderLeafBoxes(flycamera, scene_light, onlyIntersected);
-            children[1].renderLeafBoxes(flycamera, scene_light, onlyIntersected);
-        } else {
+    void renderLeafBoxes(const Tucano::Flycamera &flycamera, const Tucano::Camera &scene_light, const bool onlyIntersected, int& requiredSplitDepth, const int currentSplitDepth) {
+        if (requiredSplitDepth == -1) {
+            return;
+        } else if (requiredSplitDepth > depth) {
+            requiredSplitDepth = -1;
+        } else if (requiredSplitDepth == currentSplitDepth) {
             //Render when we don't want only intersected, and if we do only want intersected then should be hit by the ray as well.
             bool perform = !onlyIntersected || (onlyIntersected && hitByRay);
             if (perform) {
-                Eigen::Vector3f shape = getShape();
-                Tucano::Shapes::Box bounding = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
-                bounding.resetModelMatrix();
-                bounding.modelMatrix()->translate(((vmax + vmin) / 2));
-                auto r = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
-                auto g = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
-                auto b = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
-                bounding.setColor(Eigen::Vector4f(r, g, b, 0.1));
-                bounding.render(flycamera, scene_light);
+                visualization.render(flycamera, scene_light);
             }
+        } else if (!children.empty()) {
+            children[0].renderLeafBoxes(flycamera, scene_light, onlyIntersected, requiredSplitDepth, currentSplitDepth + 1);
+            children[1].renderLeafBoxes(flycamera, scene_light, onlyIntersected, requiredSplitDepth, currentSplitDepth + 1);
         }
     }
 

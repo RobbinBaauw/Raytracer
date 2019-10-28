@@ -110,7 +110,11 @@ public:
 	*/
 	Eigen::Vector3f getLightIntensity(const Eigen::Vector3f &hitPosition);
 
+    bool renderIntersection = false;
+    int splitPreviewDepth = -1;
+
 private:
+
     PrecomputedData precomputedData;
 
     // A simple phong shader for rendering meshes
@@ -141,13 +145,11 @@ private:
     // Scene meshes
     Tucano::Mesh mesh;
 
-	// boundingBox that contains the whole mesh and is the root
-	boundingBox boxMain;
-    bool renderBoxBool = false;
-    bool renderIntersectedBoxBool = false;
-
     /// MTL materials
     vector<Tucano::Material::Mtl> materials;
+
+    // boundingBox that contains the whole mesh and is the root
+    boundingBox boxMain;
 };
 
 #endif // FLYSCENE

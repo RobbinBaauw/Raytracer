@@ -90,6 +90,7 @@ void Flyscene::initialize(int width, int height) {
     }
 
     boxMain.splitBox(precomputedData);
+    boxMain.computeDepth();
 
     startDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
 
@@ -228,11 +229,12 @@ void Flyscene::paintGL() {
   // }
 
 
-    if (renderBoxBool) {
-        boxMain.renderLeafBoxes(flycamera, scene_light, false);
-    }
-    if (renderIntersectedBoxBool) {
-        boxMain.renderLeafBoxes(flycamera, scene_light, true);
+    if (splitPreviewDepth != -1) {
+        if (renderIntersection) {
+            boxMain.renderLeafBoxes(flycamera, scene_light, true, splitPreviewDepth, 0);
+        } else {
+            boxMain.renderLeafBoxes(flycamera, scene_light, false, splitPreviewDepth, 0);
+        }
     }
 
     // render the scene using OpenGL and one light source
@@ -259,12 +261,6 @@ void Flyscene::paintGL(void) {
 
     float dz = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? 0.6f : 0.4f) -
                (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 0.6f : 0.4f);
-
-    //This code only shows the leaf boundingBoxes when B is pressed.
-    renderBoxBool = false;
-    renderIntersectedBoxBool = false;
-    if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) renderBoxBool = true;
-    if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) renderIntersectedBoxBool = true;
 
     flycamera.translate(dx, dy, dz);
 }

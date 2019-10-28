@@ -34,6 +34,8 @@ endif()
 
 # turn on DEBUG in TUCANO (comment to turn it off)
 #add_definitions(-DTUCANODEBUG)
+add_definitions(-D_USE_MATH_DEFINES)
+add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
 # set the directory with your files as SHADING_SOURCES
 set(

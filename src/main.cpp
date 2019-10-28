@@ -57,16 +57,23 @@ void initialize(void) {
 }
 
 void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods) {
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, 1);
-    else if (key == GLFW_KEY_R && action == GLFW_PRESS)
+    } else if (key == GLFW_KEY_R && action == GLFW_PRESS) {
         flyscene->getCamera()->reset();
-    else if (key == GLFW_KEY_Z && action == GLFW_PRESS)
+    } else if (key == GLFW_KEY_Z && action == GLFW_PRESS) {
         flyscene->startDebugRay(mouse_pos);
-    else if (key == GLFW_KEY_L && action == GLFW_PRESS)
+    } else if (key == GLFW_KEY_L && action == GLFW_PRESS) {
         flyscene->addLight();
-    else if (key == GLFW_KEY_T && action == GLFW_PRESS)
+    } else if (key == GLFW_KEY_T && action == GLFW_PRESS) {
         flyscene->raytraceScene();
+    } else if (key == GLFW_KEY_B && action == GLFW_PRESS) {
+        flyscene->splitPreviewDepth++;
+        flyscene->renderIntersection = false;
+    } else if (key == GLFW_KEY_I && action == GLFW_PRESS) {
+        flyscene->splitPreviewDepth++;
+        flyscene->renderIntersection = true;
+    }
 }
 
 static void mouseButtonCallback(GLFWwindow *window, int button, int action,
