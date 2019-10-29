@@ -6,7 +6,7 @@
 #include "boundingBox.h"
 
 void Flyscene::initialize(int width, int height) {
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     std::cout << "Initializing scene ..." << std::endl;
 
     std::chrono::time_point<std::chrono::steady_clock> completeStart = std::chrono::steady_clock::now();
@@ -23,9 +23,9 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/Excalibur2.obj");
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Loading obj: " << diff.count() << "ms" << std::endl;
@@ -38,14 +38,14 @@ void Flyscene::initialize(int width, int height) {
 
   mesh.normalizeModelMatrix();
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Init p1: " << diff.count() << "ms" << std::endl;
     start = std::chrono::steady_clock::now();
 #endif
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Debug ray: " << diff.count() << "ms" << std::endl;
@@ -55,7 +55,7 @@ void Flyscene::initialize(int width, int height) {
     camerarep.resetModelMatrix();
     camerarep.setModelMatrix(flycamera.getViewMatrix().inverse());
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Init p2: " << diff.count() << "ms" << std::endl;
@@ -65,7 +65,7 @@ void Flyscene::initialize(int width, int height) {
     precomputeData();
     precomputeLights();
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Precomputing: " << diff.count() << "ms" << std::endl;
@@ -85,14 +85,14 @@ void Flyscene::initialize(int width, int height) {
 
     startDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Bounding boxes: " << diff.count() << "ms" << std::endl;
     start = std::chrono::steady_clock::now();
 #endif
 
-#ifdef LOGGING
+#ifdef DEBUG
     std::cout << "Node count is: " << boundingBox::getNode() << std::endl;
     std::cout << "Leaf count is: " << boundingBox::getLeaf() << std::endl;
 
@@ -199,12 +199,10 @@ void Flyscene::precomputeLights() {
 }
 
 void Flyscene::paintGL() {
-
-  // the debug ray is a cylinder, set the radius and length of the cylinder
-  ray.setSize(0.005, 1.0);
-
-  // craete a first debug ray pointing at the center of the screen
-  createDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
+#ifdef PAINTGL
+    // update the camera view matrix with the last mouse interactions
+    flycamera.updateViewMatrix();
+    Eigen::Vector4f viewport = flycamera.getViewport();
 
   glEnable(GL_DEPTH_TEST);
 
@@ -225,7 +223,7 @@ void Flyscene::paintGL() {
     }
 
     // render the scene using OpenGL and one light source
-    phong.render(mesh, flycamera, scene_light);
+//    phong.render(mesh, flycamera, scene_light);
 
     camerarep.render(flycamera, scene_light);
 
@@ -236,6 +234,9 @@ void Flyscene::paintGL() {
         lightrep.render(flycamera, scene_light);
     }
 
+    // render coordinate system at lower right corner
+    flycamera.renderAtCorner();
+#endif
 }
 
 void Flyscene::paintGL(void) {
@@ -306,7 +307,7 @@ void Flyscene::createDebugRay(const Eigen::Vector3f &origin, const Eigen::Vector
 
 void Flyscene::raytraceScene() {
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     std::cout << "-------------------------" << std::endl;
     std::cout << "Starting ray tracing ..." << std::endl;
 
@@ -324,11 +325,11 @@ void Flyscene::raytraceScene() {
     // create 2d vector to hold pixel colors and resize to match image size
     vector<vector<Eigen::Vector3f>> pixel_data;
     pixel_data.resize(ySize);
-    for (int i = 0; i < ySize; ++i){
+    for (int i = 0; i < ySize; ++i) {
         pixel_data[i].resize(xSize);
     }
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Initialization stuff: " << diff.count() << "ms" << std::endl;
@@ -349,7 +350,7 @@ void Flyscene::raytraceScene() {
         threads.emplace_back(&Flyscene::tracePixels, this, threadIndex, threadCount, std::ref(origin), std::ref(pixel_data), xSize, ySize); // Requires std::ref
     }
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Dividing threads: " << diff.count() << "ms" << std::endl;
@@ -360,7 +361,7 @@ void Flyscene::raytraceScene() {
         threads[i].join();
     }
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Raytracing: " << diff.count() << "ms" << std::endl;
@@ -370,14 +371,14 @@ void Flyscene::raytraceScene() {
     // write the ray tracing result to a PPM image
     Tucano::ImageImporter::writePPMImage("result.ppm", pixel_data);
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Writing file: " << diff.count() << "ms" << std::endl;
     start = std::chrono::steady_clock::now();
 #endif
 
-#ifdef TIMESTAMPING
+#ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - completeStart);
     std::cout << "Done! Total time: " << diff.count() << "ms" << std::endl;
@@ -454,7 +455,7 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
 		//std::cout << "SHADOW" << std::endl;
 	//}
 
-#ifdef LOGGING
+#ifdef DEBUG
     std::cout << "Color" << std::endl;
     std::cout << color << std::endl;
 #endif
@@ -662,12 +663,12 @@ bool Flyscene::triangleIntersection(float &currentMaxDepth, const Eigen::Vector3
     return hasIntersected;
 }
 
-void Flyscene::tracePixels(const unsigned int threadId,
-                           const unsigned int threads,
+void Flyscene::tracePixels(unsigned int threadId,
+                           unsigned int threads,
                            const Eigen::Vector3f &origin,
                            vector<vector<Eigen::Vector3f>> &pixel_data,
-                           const int xSize,
-                           const int ySize) {
+                           int xSize,
+                           int ySize) {
 
     flycamera.reComputeViewMatrix();
 
@@ -695,6 +696,12 @@ void Flyscene::tracePixels(const unsigned int threadId,
 
             pixel_data[y][x] = currentColor / (SSAALEVEL * SSAALEVEL);
         }
+
+#ifdef INFO
+        if (threadId == 0) {
+            std::cout << "X: " << x << std::endl;
+        }
+#endif
     }
 }
 

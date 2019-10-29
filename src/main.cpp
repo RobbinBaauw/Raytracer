@@ -4,9 +4,10 @@
 #include <GLFW/glfw3.h>
 #include "flyscene.hpp"
 #include <iostream>
+#include <chrono>
 
-#define WINDOW_WIDTH 100
-#define WINDOW_HEIGHT 100
+#define WINDOW_WIDTH 250
+#define WINDOW_HEIGHT 250
 
 Flyscene *flyscene;
 Eigen::Vector2f mouse_pos = Eigen::Vector2f::Zero();

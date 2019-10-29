@@ -19,22 +19,26 @@
 #include "boundingBox.h"
 
 // Global variables
-#define HARDSHADOW
-#define SOFTSHADOW
+#define HARDSHADOW // Enables hardshadow
+#define SOFTSHADOW // Enables softshadow
 
-#define TIMESTAMPING
-//#define DETAILTIMESTAMPING
-//#define LOGGING
+#define INFOTIMESTAMPING // Logs info timestamping
+//#define DEBUGTIMESTAMPING // Logs debug timestamping
 
-#define SOFTSHADOWRADIUS 0.3f
-#define MAXSOFTSHADOWPOINTS 12
+#define INFO // Logs info stuff
+//#define DEBUG // Logs debug stuff
 
-#define SSAALEVEL 2
+//#define PAINTGL // Enables preview window
 
-//#define THREADCOUNTOVERRIDE 1
+#define SOFTSHADOWRADIUS 0.3f // The radius of the lights for soft shadows
+#define MAXSOFTSHADOWPOINTS 12 // The amount of points used for soft shadows
 
-#define MAXREFLECTIONS 5
-#define MAXDEBUGREFLECTIONS 10
+#define SSAALEVEL 3 // The SSAA level (3 => 3^2 = 9 times as many pixels)
+
+//#define THREADCOUNTOVERRIDE 11 // The amount of threads (if not defined it uses max)
+
+#define MAXREFLECTIONS 5 // The maximum amount of reflections / refractions
+#define MAXDEBUGREFLECTIONS 10 // The maximum amount of reflections in the debug tracer
 
 class Flyscene {
 
@@ -112,12 +116,12 @@ public:
                             Eigen::Vector3f &reflection, Eigen::Vector3f &refraction
     );
 
-    void tracePixels(const unsigned int threadId,
-                     const unsigned int threads,
+    void tracePixels(unsigned int threadId,
+                     unsigned int threads,
                      const Eigen::Vector3f &origin,
                      vector<vector<Eigen::Vector3f>> &pixel_data,
-                     const int xSize,
-                     const int ySize);
+                     int xSize,
+                     int ySize);
 
     void precomputeData();
 
