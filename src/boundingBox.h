@@ -302,8 +302,8 @@ public:
     */
     void intersectingBoxes(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, std::vector<std::vector<int> *> &intersectingFaces) {
         if (boxIntersection(origin, direction)) {
+			hitByRay = true;
             if (children.empty()) {
-                hitByRay = true;
                 intersectingFaces.emplace_back(&faceIndices);
             } else {
                 children[0].intersectingBoxes(origin, direction, intersectingFaces);
@@ -313,6 +313,14 @@ public:
             hitByRay = false;
         }
     }
+
+	void resetHitByRay() {
+		hitByRay = false;
+		if (!children.empty()) {
+			children[0].resetHitByRay();
+			children[1].resetHitByRay();
+		}
+	}
 };
 
 #endif // BOUNDINGBOX

@@ -222,6 +222,7 @@ void Flyscene::paintGL() {
         boxMain.renderLeafBoxes(flycamera, scene_light, renderIntersection, splitPreviewDepth, 0);
     }
 
+
     // render the scene using OpenGL and one light source
     phong.render(mesh, flycamera, scene_light);
 
@@ -270,6 +271,8 @@ void Flyscene::paintGL(void) {
 }
 
 void Flyscene::startDebugRay(const Eigen::Vector2f &mouseCoords) {
+
+	boxMain.resetHitByRay();
 
     rays.clear();
 
