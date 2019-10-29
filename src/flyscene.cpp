@@ -318,14 +318,15 @@ void Flyscene::raytraceScene() {
 
     // if no width or height passed, use dimensions of current viewport
     Eigen::Vector2i image_size = flycamera.getViewportSize();
+    const int &xSize = image_size[0];
+    const int &ySize = image_size[1];
 
     // create 2d vector to hold pixel colors and resize to match image size
     vector<vector<Eigen::Vector3f>> pixel_data;
-    int &xSize = image_size[0];
-    int &ySize = image_size[1];
     pixel_data.resize(ySize);
-    for (int i = 0; i < ySize; ++i)
-        pixel_data[i].resize(image_size[0]);
+    for (int i = 0; i < ySize; ++i){
+        pixel_data[i].resize(xSize);
+    }
 
 #ifdef TIMESTAMPING
     end = std::chrono::steady_clock::now();
@@ -337,13 +338,15 @@ void Flyscene::raytraceScene() {
     // origin of the ray is always the camera center
     Eigen::Vector3f origin = flycamera.getCenter();
 
-    const auto threadCount = thread::hardware_concurrency();
-//    const auto threadCount = 1;
+    auto threadCount = thread::hardware_concurrency();
+#ifdef THREADCOUNTOVERRIDE
+    threadCount = THREADCOUNTOVERRIDE;
+#endif
 
     vector<thread> threads;
 
-    for (int threadIndex = 0; threadIndex < threadCount; threadIndex++) {
-        threads.emplace_back(&Flyscene::tracePixels, this, threadIndex, threadCount, std::ref(origin), std::ref(pixel_data), std::ref(image_size)); // Requires std::ref
+    for (unsigned int threadIndex = 0; threadIndex < threadCount; threadIndex++) {
+        threads.emplace_back(&Flyscene::tracePixels, this, threadIndex, threadCount, std::ref(origin), std::ref(pixel_data), xSize, ySize); // Requires std::ref
     }
 
 #ifdef TIMESTAMPING
@@ -353,7 +356,7 @@ void Flyscene::raytraceScene() {
     start = std::chrono::steady_clock::now();
 #endif
 
-    for (int i = 0; i < threadCount; i++) {
+    for (unsigned int i = 0; i < threadCount; i++) {
         threads[i].join();
     }
 
@@ -659,25 +662,38 @@ bool Flyscene::triangleIntersection(float &currentMaxDepth, const Eigen::Vector3
     return hasIntersected;
 }
 
-void Flyscene::tracePixels(int threadId, int threads, Eigen::Vector3f &origin, vector<vector<Eigen::Vector3f>> &pixel_data,
-                           Eigen::Vector2i &image_size) {
-
-    const int &xSize = image_size[0];
-    const int &ySize = image_size[1];
+void Flyscene::tracePixels(const unsigned int threadId,
+                           const unsigned int threads,
+                           const Eigen::Vector3f &origin,
+                           vector<vector<Eigen::Vector3f>> &pixel_data,
+                           const int xSize,
+                           const int ySize) {
 
     flycamera.reComputeViewMatrix();
 
-    for (int x = 0; x < xSize; x++) {
-        for (int y = threadId; y < ySize; y += threads) {
-            // create a ray from the camera passing through the pixel (i,j)
-            const Eigen::Vector3f &screen_coords = flycamera.screenToWorld(Eigen::Vector2f(x, y));
+    for (unsigned int x = 0; x < xSize; x++) {
+        for (unsigned int y = threadId; y < ySize; y += threads) {
 
-            const Eigen::Vector3f direction = (screen_coords - origin).normalized();
+            Eigen::Vector3f currentColor = {0.0f, 0.0f, 0.0f};
 
-            // launch raytracing for the given ray and write result to pixel data
-            const Eigen::Vector3f &colorOut = traceRay(origin, direction, 0);
+            for (unsigned int xSS = 0; xSS < SSAALEVEL; xSS++) {
+                for (unsigned int ySS = 0; ySS < SSAALEVEL; ySS++) {
 
-            pixel_data[y][x] = colorOut;
+                    const float currX = (float) x + (float) xSS / SSAALEVEL;
+                    const float currY = (float) y + (float) ySS / SSAALEVEL;
+
+                    // create a ray from the camera passing through the pixel (i,j)
+                    const Eigen::Vector3f &screen_coords = flycamera.screenToWorld(Eigen::Vector2f(currX, currY));
+
+                    const Eigen::Vector3f direction = (screen_coords - origin).normalized();
+
+                    // launch raytracing for the given ray and write result to pixel data
+                    currentColor += traceRay(origin, direction, 0);
+
+                }
+            }
+
+            pixel_data[y][x] = currentColor / (SSAALEVEL * SSAALEVEL);
         }
     }
 }

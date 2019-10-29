@@ -18,6 +18,7 @@
 #include <tucano/utils/objimporter.hpp>
 #include "boundingBox.h"
 
+// Global variables
 #define HARDSHADOW
 #define SOFTSHADOW
 
@@ -27,6 +28,10 @@
 
 #define SOFTSHADOWRADIUS 0.3f
 #define MAXSOFTSHADOWPOINTS 12
+
+#define SSAALEVEL 2
+
+//#define THREADCOUNTOVERRIDE 1
 
 #define MAXREFLECTIONS 5
 #define MAXDEBUGREFLECTIONS 10
@@ -107,11 +112,12 @@ public:
                             Eigen::Vector3f &reflection, Eigen::Vector3f &refraction
     );
 
-    void tracePixels(int threadId,
-                     int threads,
-                     Eigen::Vector3f &origin,
+    void tracePixels(const unsigned int threadId,
+                     const unsigned int threads,
+                     const Eigen::Vector3f &origin,
                      vector<vector<Eigen::Vector3f>> &pixel_data,
-                     Eigen::Vector2i &image_size);
+                     const int xSize,
+                     const int ySize);
 
     void precomputeData();
 
