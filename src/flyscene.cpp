@@ -277,9 +277,7 @@ void Flyscene::startDebugRay(const Eigen::Vector2f &mouseCoords) {
     flycamera.reComputeViewMatrix();
     Eigen::Vector3f screen_pos = flycamera.screenToWorld(mouseCoords);
 
-    std::vector<int> indices;
     const Eigen::Vector3f &origin = flycamera.getCenter();
-    boxMain.intersectingBoxes(origin, screen_pos, indices);
 
     // direction from camera center to click position
     Eigen::Vector3f dir = (screen_pos - origin).normalized();
@@ -622,7 +620,7 @@ bool Flyscene::triangleIntersection(float &currentMaxDepth, const Eigen::Vector3
     std::chrono::microseconds diff;
 #endif
 
-    vector<int> intersectingFaces;
+    intersectingFaces.clear();
     boxMain.intersectingBoxes(origin, direction, intersectingFaces);
 
 #ifdef DETAILTIMESTAMPING
@@ -634,48 +632,52 @@ bool Flyscene::triangleIntersection(float &currentMaxDepth, const Eigen::Vector3
 
     bool hasIntersected = false;
 
-    for (auto &i : intersectingFaces) {
-        const Eigen::Vector3f &normal = precomputedData.faceNormals[i];
+    for (auto &vec : intersectingFaces) {
+        for (auto &i : *vec) {
+            const Eigen::Vector3f &normal = precomputedData.faceNormals[i];
 
-        // Get distance from triangle to origin (see slide 27)
-        const auto &originDistance = precomputedData.faceOriginDistance[i];
+            // Get distance from triangle to origin (see slide 27)
+            const auto &originDistance = precomputedData.faceOriginDistance[i];
 
-        // Compute tHit (see slide 10)
-        const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
+            // Compute tHit (see slide 10)
+            const auto tHit = (originDistance - origin.dot(normal)) / (direction.dot(normal));
 
-        if (tHit < 0.00001f || tHit > currentMaxDepth) continue;
+            if (tHit < 0.00001f || tHit > currentMaxDepth) continue;
 
-        // Retrieve the current face and its vertex ids
-        const auto &currVertexIds = precomputedData.faceVertexIds[i];
+            // Retrieve the current face and its vertex ids
+            const auto &currVertexIds = precomputedData.faceVertexIds[i];
 
-        // Create the vertices
-        const Eigen::Vector3f &v0 = precomputedData.vertices[get<0>(currVertexIds)];
-        const Eigen::Vector3f &v1 = precomputedData.vertices[get<1>(currVertexIds)];
-        const Eigen::Vector3f &v2 = precomputedData.vertices[get<2>(currVertexIds)];
+            // Create the vertices
+            const Eigen::Vector3f &v0 = precomputedData.vertices[get<0>(currVertexIds)];
+            const Eigen::Vector3f &v1 = precomputedData.vertices[get<1>(currVertexIds)];
+            const Eigen::Vector3f &v2 = precomputedData.vertices[get<2>(currVertexIds)];
 
-        // Compute hit point (see slide 10)
-        const auto hitPoint = origin + tHit * direction;
+            // Compute hit point (see slide 10)
+            const auto hitPoint = origin + tHit * direction;
 
-        const auto a = (v1 - v0).cross(hitPoint - v0).dot(normal);
-        if (a < 0) continue;
+            const auto a = (v1 - v0).cross(hitPoint - v0).dot(normal);
+            if (a < 0) continue;
 
-        const auto b = (v2 - v1).cross(hitPoint - v1).dot(normal);
-        if (b < 0) continue;
+            const auto b = (v2 - v1).cross(hitPoint - v1).dot(normal);
+            if (b < 0) continue;
 
-        const auto c = (v0 - v2).cross(hitPoint - v2).dot(normal);
-        if (c < 0) continue;
+            const auto c = (v0 - v2).cross(hitPoint - v2).dot(normal);
+            if (c < 0) continue;
 
-        hasIntersected = true;
-        currentMaxDepth = tHit;
+            hasIntersected = true;
+            currentMaxDepth = tHit;
 
-        reflection = direction - 2 * direction.dot(normal) * normal;
-        refraction = Eigen::Vector3f(0, 0, 0); // TODO
+            reflection = direction - 2 * direction.dot(normal) * normal;
+            refraction = Eigen::Vector3f(0, 0, 0); // TODO
 
-        hitpoint = hitPoint;
-        faceId = i;
+            hitpoint = hitPoint;
+            faceId = i;
+        }
     }
     return hasIntersected;
 }
+
+thread_local vector<vector<int> *> Flyscene::intersectingFaces = vector<vector<int> *>();
 
 void Flyscene::tracePixels(unsigned int threadId,
                            unsigned int threads,
@@ -683,6 +685,8 @@ void Flyscene::tracePixels(unsigned int threadId,
                            vector<vector<Eigen::Vector3f>> &pixel_data,
                            int xSize,
                            int ySize) {
+
+    intersectingFaces.reserve(sizeof(int) * 50); // Just a guess, allocating for 10 pointers now is quicker than extending each time
 
     flycamera.reComputeViewMatrix();
 

@@ -25,7 +25,7 @@
 #define INFOTIMESTAMPING // Logs info timestamping
 //#define DEBUGTIMESTAMPING // Logs debug timestamping
 
-#define INFO // Logs info stuff
+//#define INFO // Logs info stuff
 //#define DEBUG // Logs debug stuff
 
 #define PAINTGL // Enables preview window
@@ -33,7 +33,7 @@
 #define SOFTSHADOWRADIUS 0.3f // The radius of the lights for soft shadows
 #define MAXSOFTSHADOWPOINTS 12 // The amount of points used for soft shadows
 
-#define SSAALEVEL 3 // The SSAA level (3 => 3^2 = 9 times as many pixels)
+#define SSAALEVEL 1 // The SSAA level (3 => 3^2 = 9 times as many pixels)
 
 //#define THREADCOUNTOVERRIDE 11 // The amount of threads (if not defined it uses max)
 
@@ -134,9 +134,11 @@ public:
 
     bool renderIntersection = false;
     int splitPreviewDepth = -1;
-	int debugReflectionDepth = -1;
+    int debugReflectionDepth = -1;
 
 private:
+
+    static thread_local vector<vector<int> *> intersectingFaces;
 
     PrecomputedData precomputedData;
 

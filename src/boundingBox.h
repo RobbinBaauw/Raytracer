@@ -31,7 +31,7 @@ private:
     std::vector<boundingBox> children;
 
     //If we have this amount of faces in a box it shouldn't be split any further
-    int baseCase = 50;
+    int baseCase = 10;
 
     Tucano::Shapes::Box visualization;
 
@@ -118,6 +118,8 @@ public:
         Eigen::Vector3f lowerMin = vmax;
         Eigen::Vector3f lowerMax = vmin;
 
+        unsigned int amountInRandomBox = 0;
+
         for (auto &it : faceIndices) {
             const auto vertexIds = precomputedData.faceVertexIds[it];
 
@@ -129,7 +131,10 @@ public:
             float sec = v1(sideIndex);
             float third = v2(sideIndex);
 
-            if (first > avg && sec > avg && third > avg) {
+            const auto isInUpperBox = first > avg && sec > avg && third > avg;
+            const auto isInLowerBox = first < avg && sec < avg && third < avg;
+
+            if (isInUpperBox || (!isInLowerBox && amountInRandomBox % 2 == 0)) {
                 upperBox.addFaceIndex(it);
 
                 upperMin = {
@@ -143,6 +148,11 @@ public:
                         max(v0.y(), max(v1.y(), max(v2.y(), upperMax.y()))),
                         max(v0.z(), max(v1.z(), max(v2.z(), upperMax.z())))
                 };
+
+                if (!isInUpperBox) {
+                    amountInRandomBox++;
+                }
+
             } else {
                 lowerBox.addFaceIndex(it);
 
@@ -157,6 +167,10 @@ public:
                         max(v0.y(), max(v1.y(), max(v2.y(), lowerMax.y()))),
                         max(v0.z(), max(v1.z(), max(v2.z(), lowerMax.z())))
                 };
+
+                if (!isInLowerBox) {
+                    amountInRandomBox++;
+                }
             }
         }
 
@@ -217,7 +231,7 @@ public:
      * @param shapeModelMatrix, the modelmatrix of the mesh, to translate the cube to the center of the mesh
      * @param onlyIntersected if set to true we only show the leaves that are hit by the debug ray
      */
-    void renderLeafBoxes(const Tucano::Flycamera &flycamera, const Tucano::Camera &scene_light, const bool onlyIntersected, int& requiredSplitDepth, const int currentSplitDepth) {
+    void renderLeafBoxes(const Tucano::Flycamera &flycamera, const Tucano::Camera &scene_light, const bool onlyIntersected, int &requiredSplitDepth, const int currentSplitDepth) {
         if (requiredSplitDepth == -1) {
             return;
         } else if (requiredSplitDepth > depth) {
@@ -286,11 +300,11 @@ public:
     * @param dest, the destination
     * @param intersectingFaces, an empty vector list of face indices.
     */
-    void intersectingBoxes(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, std::vector<int> &intersectingFaces) {
+    void intersectingBoxes(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, std::vector<std::vector<int> *> &intersectingFaces) {
         if (boxIntersection(origin, direction)) {
             if (children.empty()) {
                 hitByRay = true;
-                intersectingFaces.insert(intersectingFaces.end(), faceIndices.begin(), faceIndices.end());
+                intersectingFaces.emplace_back(&faceIndices);
             } else {
                 children[0].intersectingBoxes(origin, direction, intersectingFaces);
                 children[1].intersectingBoxes(origin, direction, intersectingFaces);

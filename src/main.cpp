@@ -48,8 +48,8 @@ void initialize(void) {
     std::cout << "WASD : Move camera in xz plane." << std::endl;
     std::cout << "Space / shift : Move camera along y axis." << std::endl;
     std::cout << "Z: Shoot debug ray from mouse cursor position." << std::endl;
-	std::cout << "B: Render the leafboxes" << std::endl;
-	std::cout << "I: Render the intersecting boxes of the debug ray" << std::endl;
+    std::cout << "B: Render the leafboxes" << std::endl;
+    std::cout << "I: Render the intersecting boxes of the debug ray" << std::endl;
     std::cout << "L    : Add new light source at current camera position."
               << std::endl;
     std::cout << "T    : Ray trace the scene." << std::endl;
@@ -74,27 +74,27 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
     } else if (key == GLFW_KEY_I && action == GLFW_PRESS) {
         flyscene->splitPreviewDepth++;
         flyscene->renderIntersection = true;
-	} else if (key == GLFW_KEY_0 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = -1;
-	} else if (key == GLFW_KEY_1 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 0;
-	} else if (key == GLFW_KEY_2 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 1;
-	} else if (key == GLFW_KEY_3 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 2;
-	} else if (key == GLFW_KEY_4 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 3;
-	} else if (key == GLFW_KEY_5 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 4;
-	} else if (key == GLFW_KEY_6 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 5;
-	} else if (key == GLFW_KEY_7 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 6;
-	} else if (key == GLFW_KEY_8 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 7;
-	} else if (key == GLFW_KEY_9 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 8;
-	}
+    } else if (key == GLFW_KEY_0 && action == GLFW_PRESS) {
+        flyscene->debugReflectionDepth = -1;
+    } else if (key == GLFW_KEY_1 && action == GLFW_PRESS) {
+        flyscene->debugReflectionDepth = 0;
+    } else if (key == GLFW_KEY_2 && action == GLFW_PRESS) {
+        flyscene->debugReflectionDepth = 1;
+    } else if (key == GLFW_KEY_3 && action == GLFW_PRESS) {
+        flyscene->debugReflectionDepth = 2;
+    } else if (key == GLFW_KEY_4 && action == GLFW_PRESS) {
+        flyscene->debugReflectionDepth = 3;
+    } else if (key == GLFW_KEY_5 && action == GLFW_PRESS) {
+        flyscene->debugReflectionDepth = 4;
+    } else if (key == GLFW_KEY_6 && action == GLFW_PRESS) {
+        flyscene->debugReflectionDepth = 5;
+    } else if (key == GLFW_KEY_7 && action == GLFW_PRESS) {
+        flyscene->debugReflectionDepth = 6;
+    } else if (key == GLFW_KEY_8 && action == GLFW_PRESS) {
+        flyscene->debugReflectionDepth = 7;
+    } else if (key == GLFW_KEY_9 && action == GLFW_PRESS) {
+        flyscene->debugReflectionDepth = 8;
+    }
 }
 
 static void mouseButtonCallback(GLFWwindow *window, int button, int action,
