@@ -23,7 +23,7 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/Excalibur2.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
 
 #ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
@@ -170,19 +170,19 @@ void Flyscene::precomputeData() {
 void Flyscene::precomputeLights() {
     precomputedData.lights = vector<vector<Eigen::Vector3f>>(lights.size());
 
-    for (unsigned long long i = 0; i < lights.size(); i++) {
+    for (size_t i = 0; i < lights.size(); i++) {
         precomputedData.lights[i] = vector<Eigen::Vector3f>();
     }
 
 #ifdef HARDSHADOW
-    for (unsigned long long i = 0; i < lights.size(); i++) {
+    for (size_t i = 0; i < lights.size(); i++) {
         const auto &light = lights[i];
         precomputedData.lights[i].emplace_back(light);
     }
 #endif
 
 #ifdef SOFTSHADOW
-    for (unsigned long long i = 0; i < lights.size(); i++) {
+    for (size_t i = 0; i < lights.size(); i++) {
 
         const auto &light = lights[i];
 
@@ -223,7 +223,23 @@ void Flyscene::paintGL() {
     }
 
     // render the scene using OpenGL and one light source
-//    phong.render(mesh, flycamera, scene_light);
+    phong.render(mesh, flycamera, scene_light);
+
+    for (size_t i = 0; i < rays.size(); i++) {
+        auto &ray = rays[i];
+
+        // the debug ray is a cylinder, set the radius and length of the cylinder
+        if (i == debugReflectionDepth) {
+            ray.setSize(0.010, ray.getHeight());
+            ray.setColor(Eigen::Vector4f(0.0, 1.0, 0.0, 1.0));
+        } else {
+            ray.setSize(0.005, ray.getHeight());
+            ray.setColor(Eigen::Vector4f(0.0, 0.48, 1.0, 1.0));
+        }
+
+        // render the ray and camera representation for ray debug
+        ray.render(flycamera, scene_light);
+    }
 
     camerarep.render(flycamera, scene_light);
 
@@ -275,15 +291,6 @@ void Flyscene::createDebugRay(const Eigen::Vector3f &origin, const Eigen::Vector
 
     auto currentRay = Tucano::Shapes::Cylinder(0.1, 1.0, 16, 64);
 
-    // the debug ray is a cylinder, set the radius and length of the cylinder
-	if (recursionDepth == debugReflectionDepth) {
-		currentRay.setSize(0.010, 10.0);
-		currentRay.setColor(Eigen::Vector4f(0.0, 1.0, 0.0, 1.0));
-	}
-	else {
-		currentRay.setSize(0.005, 10.0);
-		currentRay.setColor(Eigen::Vector4f(0.0, 0.48, 1.0, 1.0));
-	}
     currentRay.resetModelMatrix();
 
     // position and orient the cylinder representing the ray
@@ -309,7 +316,7 @@ void Flyscene::createDebugRay(const Eigen::Vector3f &origin, const Eigen::Vector
 //        createDebugRay(hitPoint, refraction, recursionDepth + 1);
     }
 
-    rays.emplace_back(currentRay);
+    rays.insert(rays.begin(), currentRay);
 }
 
 void Flyscene::raytraceScene() {

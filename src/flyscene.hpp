@@ -28,7 +28,7 @@
 #define INFO // Logs info stuff
 //#define DEBUG // Logs debug stuff
 
-//#define PAINTGL // Enables preview window
+#define PAINTGL // Enables preview window
 
 #define SOFTSHADOWRADIUS 0.3f // The radius of the lights for soft shadows
 #define MAXSOFTSHADOWPOINTS 12 // The amount of points used for soft shadows

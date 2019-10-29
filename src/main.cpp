@@ -6,8 +6,8 @@
 #include <iostream>
 #include <chrono>
 
-#define WINDOW_WIDTH 250
-#define WINDOW_HEIGHT 250
+#define WINDOW_WIDTH 1000
+#define WINDOW_HEIGHT 1000
 
 Flyscene *flyscene;
 Eigen::Vector2f mouse_pos = Eigen::Vector2f::Zero();
@@ -75,16 +75,18 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
         flyscene->splitPreviewDepth++;
         flyscene->renderIntersection = true;
 	} else if (key == GLFW_KEY_0 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 0;
+		flyscene->debugReflectionDepth = -1;
 	} else if (key == GLFW_KEY_1 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 1;
+		flyscene->debugReflectionDepth = 0;
 	} else if (key == GLFW_KEY_2 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 2;
+		flyscene->debugReflectionDepth = 1;
 	} else if (key == GLFW_KEY_3 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 3;
+		flyscene->debugReflectionDepth = 2;
 	} else if (key == GLFW_KEY_4 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 4;
+		flyscene->debugReflectionDepth = 3;
 	} else if (key == GLFW_KEY_5 && action == GLFW_PRESS) {
+		flyscene->debugReflectionDepth = 4;
+	} else if (key == GLFW_KEY_6 && action == GLFW_PRESS) {
 		flyscene->debugReflectionDepth = 5;
 	} else if (key == GLFW_KEY_6 && action == GLFW_PRESS) {
 		flyscene->debugReflectionDepth = 6;
@@ -92,8 +94,6 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
 		flyscene->debugReflectionDepth = 7;
 	} else if (key == GLFW_KEY_6 && action == GLFW_PRESS) {
 		flyscene->debugReflectionDepth = 8;
-	} else if (key == GLFW_KEY_6 && action == GLFW_PRESS) {
-		flyscene->debugReflectionDepth = 9;
 	}
 }
 
