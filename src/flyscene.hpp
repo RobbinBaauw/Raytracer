@@ -134,6 +134,7 @@ public:
 
     bool renderIntersection = false;
     int splitPreviewDepth = -1;
+	int debugReflectionDepth = -1;
 
 private:
 

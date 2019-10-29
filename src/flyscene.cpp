@@ -276,7 +276,14 @@ void Flyscene::createDebugRay(const Eigen::Vector3f &origin, const Eigen::Vector
     auto currentRay = Tucano::Shapes::Cylinder(0.1, 1.0, 16, 64);
 
     // the debug ray is a cylinder, set the radius and length of the cylinder
-    currentRay.setSize(0.005, 10.0);
+	if (recursionDepth == debugReflectionDepth) {
+		currentRay.setSize(0.010, 10.0);
+		currentRay.setColor(Eigen::Vector4f(0.0, 1.0, 0.0, 1.0));
+	}
+	else {
+		currentRay.setSize(0.005, 10.0);
+		currentRay.setColor(Eigen::Vector4f(0.0, 0.48, 1.0, 1.0));
+	}
     currentRay.resetModelMatrix();
 
     // position and orient the cylinder representing the ray
