@@ -4,8 +4,6 @@
 #include <GL/glew.h>
 #include <Eigen/Eigen>
 
-const int MAXSOFTSHADOWPOINTS = 12;
-
 struct PrecomputedData {
     Eigen::Vector3f * vertices;
     Eigen::Vector3f * normals;

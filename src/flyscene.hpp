@@ -18,6 +18,18 @@
 #include <tucano/utils/objimporter.hpp>
 #include "boundingBox.h"
 
+#define HARDSHADOW
+#define SOFTSHADOW
+
+#define TIMESTAMPING
+//#define DETAILTIMESTAMPING
+//#define LOGGING
+
+#define SOFTSHADOWRADIUS 0.3f
+#define MAXSOFTSHADOWPOINTS 12
+
+#define MAXREFLECTIONS 5
+#define MAXDEBUGREFLECTIONS 10
 
 class Flyscene {
 
@@ -57,9 +69,9 @@ public:
      * through pixel that mouse is over
      * @param mouse_pos Mouse cursor position in pixels
      */
-    void createDebugRay(const Eigen::Vector3f& origin, const Eigen::Vector3f& direction, int recursionDepth);
+    void createDebugRay(const Eigen::Vector3f &origin, const Eigen::Vector3f &direction, int recursionDepth);
 
-    void startDebugRay(const Eigen::Vector2f& mouseCoords);
+    void startDebugRay(const Eigen::Vector2f &mouseCoords);
 
     /**
      * @brief raytrace your scene from current camera position
@@ -69,9 +81,9 @@ public:
     /**
     * @Brief function that calculates basic shading of an intersected face
     */
-    Eigen::Vector3f shadeOffFace(int faceIndex, const Eigen::Vector3f& rayDirection, const Eigen::Vector3f& hitPosition);
+    Eigen::Vector3f shadeOffFace(int faceIndex, const Eigen::Vector3f &rayDirection, const Eigen::Vector3f &hitPosition, const Eigen::Vector3f &lightIntensity);
 
-	std::vector<Eigen::Vector3f> boundingVectors();
+    std::vector<Eigen::Vector3f> boundingVectors();
 
     /**
      * @brief trace a single ray from the camera passing through dest
@@ -91,15 +103,15 @@ public:
     );
 
     bool sphereIntersection(float &currentMaxDepth, const Eigen::Vector3f &origin, const Eigen::Vector3f &direction,
-                              int &faceId, Eigen::Vector3f &hitpoint,
-                              Eigen::Vector3f &reflection, Eigen::Vector3f &refraction
+                            int &faceId, Eigen::Vector3f &hitpoint,
+                            Eigen::Vector3f &reflection, Eigen::Vector3f &refraction
     );
 
     void tracePixels(int threadId,
-        int threads,
-        Eigen::Vector3f &origin,
-        vector<vector<Eigen::Vector3f>> &pixel_data,
-        Eigen::Vector2i &image_size);
+                     int threads,
+                     Eigen::Vector3f &origin,
+                     vector<vector<Eigen::Vector3f>> &pixel_data,
+                     Eigen::Vector2i &image_size);
 
     void precomputeData();
 
@@ -108,7 +120,7 @@ public:
     /**
 	* @brief function which calculates soft shadows.
 	*/
-	Eigen::Vector3f getLightIntensity(const Eigen::Vector3f &hitPosition);
+    Eigen::Vector3f getLightIntensity(const Eigen::Vector3f &hitPosition);
 
     bool renderIntersection = false;
     int splitPreviewDepth = -1;

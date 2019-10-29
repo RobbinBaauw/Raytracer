@@ -5,15 +5,6 @@
 #include <chrono>
 #include "boundingBox.h"
 
-//#define HARDSHADOW
-
-#define TIMESTAMPING
-//#define DETAILTIMESTAMPING
-//#define LOGGING
-
-const int MAXRECURSION = 5;
-const int MAXDEBUGRECURSION = 10;
-
 void Flyscene::initialize(int width, int height) {
 #ifdef TIMESTAMPING
     std::cout << "Initializing scene ..." << std::endl;
@@ -179,30 +170,30 @@ void Flyscene::precomputeData() {
 void Flyscene::precomputeLights() {
     precomputedData.lights = vector<vector<Eigen::Vector3f>>(lights.size());
 
-#ifdef HARDSHADOW
-    for (unsigned int i = 0; i < lights.size(); i++) {
-        const auto &light = lights[i];
-        vector<Eigen::Vector3f> lightPositions({light});
-        precomputedData.lights[i] = lightPositions;
+    for (unsigned long long i = 0; i < lights.size(); i++) {
+        precomputedData.lights[i] = vector<Eigen::Vector3f>();
     }
-#else
-    const float radius = 0.3;
 
-    for (unsigned int i = 0; i < lights.size(); i++) {
+#ifdef HARDSHADOW
+    for (unsigned long long i = 0; i < lights.size(); i++) {
+        const auto &light = lights[i];
+        precomputedData.lights[i].emplace_back(light);
+    }
+#endif
+
+#ifdef SOFTSHADOW
+    for (unsigned long long i = 0; i < lights.size(); i++) {
 
         const auto &light = lights[i];
 
-        vector<Eigen::Vector3f> lightPositions(MAXSOFTSHADOWPOINTS);
         for (int n = 0; n < MAXSOFTSHADOWPOINTS; n++) {
             float theta = (2.0f * (float) n * (float) M_PI) / MAXSOFTSHADOWPOINTS;
             float phi = acos(1 - 2 * ((float) n / (MAXSOFTSHADOWPOINTS * (float) M_PI)));
-            float x = radius * sin(phi) * cos(theta);
-            float y = radius * sin(phi) * sin(theta);
-            float z = radius * cos(phi);
-            lightPositions[n] = Eigen::Vector3f(light[0] + x, light[1] + y, light[2] + z);
+            float x = SOFTSHADOWRADIUS * sin(phi) * cos(theta);
+            float y = SOFTSHADOWRADIUS * sin(phi) * sin(theta);
+            float z = SOFTSHADOWRADIUS * cos(phi);
+            precomputedData.lights[i].emplace_back(Eigen::Vector3f(light[0] + x, light[1] + y, light[2] + z));
         }
-
-        precomputedData.lights[i] = lightPositions;
     }
 #endif
 }
@@ -296,7 +287,7 @@ void Flyscene::createDebugRay(const Eigen::Vector3f &origin, const Eigen::Vector
     Eigen::Vector3f reflection;
     Eigen::Vector3f refraction;
 
-    if (intersects(origin, direction, faceId, hitPoint, reflection, refraction) && recursionDepth < MAXDEBUGRECURSION) {
+    if (intersects(origin, direction, faceId, hitPoint, reflection, refraction) && recursionDepth < MAXDEBUGREFLECTIONS) {
 
         const auto lengthRay = (origin - hitPoint).norm();
         currentRay.setSize(0.005, lengthRay);
@@ -390,7 +381,7 @@ void Flyscene::raytraceScene() {
 #endif
 }
 
-Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &origin, const Eigen::Vector3f &hitPosition) {
+Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &origin, const Eigen::Vector3f &hitPosition, const Eigen::Vector3f &lightIntensity) {
 
     Eigen::Vector3f color = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
 
@@ -398,8 +389,6 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
     if (materialIndex == -1) {
         return {0.5f, 0.5f, 0.5f};
     }
-
-    Eigen::Vector3f lightIntensity = getLightIntensity(hitPosition);
 
     Tucano::Material::Mtl &material = materials[materialIndex];
 
@@ -495,7 +484,9 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
 #endif
 
     if (b) {
-        const Eigen::Vector3f localShading = shadeOffFace(faceId, origin, hitPoint);
+        const Eigen::Vector3f lightIntensity = getLightIntensity(hitPoint);
+
+        const Eigen::Vector3f localShading = shadeOffFace(faceId, origin, hitPoint, lightIntensity);
 
 #ifdef DETAILTIMESTAMPING
         end = std::chrono::steady_clock::now();
@@ -504,7 +495,7 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
         start = std::chrono::steady_clock::now();
 #endif
 
-        if (recursionDepth < MAXRECURSION) {
+        if (recursionDepth < MAXREFLECTIONS) {
             int &materialIndex = precomputedData.faceMaterialIds[faceId];
             if (materialIndex == -1) {
                 return localShading;
@@ -518,29 +509,15 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
 
                 // Reflection
                 reflection.normalize();
-
                 const Eigen::Vector3f reflectionShading = traceRay(hitPoint + 0.01f * reflection, reflection, recursionDepth + 1);
-                const Eigen::Vector3f weightedReflectionShading = {
-                reflectionShading.x() * specular.x(),
-                reflectionShading.y() * specular.y(),
-                reflectionShading.z() * specular.z()
-                };
+                const Eigen::Vector3f weightedReflectionShading = reflectionShading.cwiseProduct(specular).cwiseProduct(lightIntensity);
 
                 // Refraction
                 refraction.normalize();
-
 //                const Eigen::Vector3f refractionShading = traceRay(hitPoint, refraction, recursionDepth + 1);
-//                const Eigen::Vector3f weightedRefractionShading = {
-//                        refractionShading.x() * specular.x(),
-//                        refractionShading.y() * specular.y(),
-//                        refractionShading.z() * specular.z()
-//                };
+//                const Eigen::Vector3f weightedRefractionShading = refractionShading.cwiseProduct(1 - specular).cwiseProduct(lightIntensity);
 
-                return {
-                        localShading.x() + weightedReflectionShading.x(), // + weightedRefractionShading.x(),
-                        localShading.y() + weightedReflectionShading.y(), // + weightedRefractionShading.y(),
-                        localShading.z() + weightedReflectionShading.z(), // + weightedRefractionShading.z()
-                };
+                return localShading + weightedReflectionShading; // + weightedRefractionShading
             }
         }
 
