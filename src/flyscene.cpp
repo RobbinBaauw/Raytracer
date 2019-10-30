@@ -23,7 +23,7 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/toy_on_plane.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
 #ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -41,8 +41,7 @@ void Flyscene::initialize(int width, int height) {
     lightrep.setSize(0.01);
 
     // create a first ray-tracing light source at some random position
-    lights.emplace_back(std::make_pair(Eigen::Vector3f(-0.5, 2.0, 3.0), Eigen::Vector3f(0.6, 0.2, 0.4)));
-    lights.emplace_back(std::make_pair(Eigen::Vector3f(1.0, 2.0, 3.0), Eigen::Vector3f(1.0, 0, 0)));
+    lights.emplace_back(std::make_pair(Eigen::Vector3f(-1.0f, 1.0f, 1.0f), Eigen::Vector3f(1.0f, 1.0f, 1.0f)));
 
     // scale the camera representation (frustum) for the ray debug
     camerarep.shapeMatrix()->scale(0.2);
@@ -794,5 +793,5 @@ Eigen::Vector3f Flyscene::getLightIntensity(const Eigen::Vector3f &hitPosition) 
     // Calculate the light intensity and return
     float maximum = 1;
     lightIntensity = min(lightIntensity, maximum);
-    return {lightIntensity * 0.6f, lightIntensity * 0.2f, lightIntensity * 0.4f};
+    return {lightIntensity, lightIntensity, lightIntensity};
 }
