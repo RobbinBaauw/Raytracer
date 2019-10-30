@@ -34,7 +34,12 @@ void Flyscene::initialize(int width, int height) {
     // normalize the model (scale to unit cube and center at origin)
     mesh.normalizeModelMatrix();
 
+    // pass all the materials to the Phong Shader
+	for (auto& material : materials) {
 
+		std::cout << material.getDiffuseTexture().isEmpty() << std::endl;
+		phong.addMaterial(material);
+	}
     // set the color and size of the sphere to represent the light sources
     // same sphere is used for all sources
     lightrep.setColor(Eigen::Vector4f(1.0, 1.0, 0.0, 1.0));
@@ -425,10 +430,12 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
     Tucano::Material::Mtl &material = materials[materialIndex];
 
 	//mesh.getFace(faceIndex)
-
-	bool has_texture = (mesh.getFace(faceIndex).texcoord.size() > 0) && !material.getDiffuseTexture().isEmpty();
-	
-	//std::cout <<  has_texture << std::endl;
+	// doesn't work has_texture
+	bool has_texture = (mesh.getFace(faceIndex).texcoord.size() > 0) && material.getDiffuseTextureFilename().size() > 0;
+	string diffuse_tex_filename = material.getDiffuseTextureFilename();
+	Tucano::Texture diffuse_tex;
+	Tucano::ImageImporter::loadPPMImage(diffuse_tex_filename, &diffuse_tex);
+	std::cout <<  has_texture << std::endl;
 
     // Interpolating the normal
     const auto &currVertexIds = precomputedData.faceVertexIds[faceIndex];
