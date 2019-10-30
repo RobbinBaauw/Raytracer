@@ -23,7 +23,7 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube.obj");
 #ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -420,7 +420,15 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
         return {0.5f, 0.5f, 0.5f};
     }
 
+	
+
     Tucano::Material::Mtl &material = materials[materialIndex];
+
+	//mesh.getFace(faceIndex)
+
+	bool has_texture = (mesh.getFace(faceIndex).texcoord.size() > 0) && !material.getDiffuseTexture().isEmpty();
+	
+	//std::cout <<  has_texture << std::endl;
 
     // Interpolating the normal
     const auto &currVertexIds = precomputedData.faceVertexIds[faceIndex];
@@ -450,9 +458,23 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
 			Eigen::Vector3f lightDirection = (lightPosition - hitPosition).normalized();
 			const Eigen::Vector3f ambient = lightIntensity.cwiseProduct(material.getAmbient());
 
-			// Diffuse term
-			float cos1 = fmaxf(0, lightDirection.dot(faceNormal));
-			const Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
+		
+
+        // Diffuse term
+        float cos1 = fmaxf(0, lightDirection.dot(faceNormal));
+		Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
+		
+
+		if (has_texture) {
+			vector<Eigen::Vector2f> texcoord = mesh.getFace(faceIndex).texcoord;
+			for (Eigen::Vector2f tex : texcoord)
+				std::cout << tex << endl;
+				
+			
+			//Tucano::Texture diffuseTexture = material.getDiffuseTexture()//mesh.getTexCoord(faceIndex, 1);
+			//diffuse = lightIntensity.cwiseProduct(diffuseTexture) * cos1;
+		}
+        
 
 			// Specular term
 			const Eigen::Vector3f eyeDirection = (origin - hitPosition).normalized();
