@@ -33,6 +33,59 @@ namespace ImageImporter
 
 static bool loadPPMImage (string filename, Tucano::Texture* tex);
 
+static vector<float> loadPPMImage (string filename, int &w, int &h)
+{
+
+
+    filename.erase(std::remove(filename.begin(), filename.end(), '\n'), filename.end());
+    filename.erase(std::remove(filename.begin(), filename.end(), '\r'), filename.end());
+
+    ifstream in(filename.c_str(), ios::in);
+    if (!in)
+    {
+        std::cerr << "Cannot open " << filename.c_str() << std::endl;
+    }
+
+    vector<float> data;
+    string header;
+    in >> header;
+    int w, h;
+    in >> w >> h;
+    float max_value;
+    in >> max_value;
+
+    float value;
+    while (in >> value)
+    {
+        data.push_back(value/max_value);
+    }
+
+    if(in.is_open())
+    {
+        in.close();
+    }
+
+    // flip texture since it will be upside down (invertex y axis)
+    vector<float> flipped;
+    for (int j = h-1; j >= 0; j--)
+    {
+        for (int i = 0; i < w; i++)
+        {
+            flipped.push_back( data[(j*w + i)*3 + 0]);
+            flipped.push_back( data[(j*w + i)*3 + 1]);
+            flipped.push_back( data[(j*w + i)*3 + 2]);
+        }
+    }
+
+    tex->create (GL_TEXTURE_2D, GL_RGBA32F, w, h, GL_RGB, GL_FLOAT, &flipped[0], 0);
+
+#ifdef TUCANODEBUG
+    Tucano::Misc::errorCheckFunc(__FILE__, __LINE__);
+#endif
+    return flipped;
+}
+
+
 /**
  * @brief Loads a texture from a PPM file.
  * The texture receives data in the range [0,1] to create a FLOAT texture

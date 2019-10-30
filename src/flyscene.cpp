@@ -425,17 +425,13 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
         return {0.5f, 0.5f, 0.5f};
     }
 
-	
-
     Tucano::Material::Mtl &material = materials[materialIndex];
 
-	//mesh.getFace(faceIndex)
-	// doesn't work has_texture
-	bool has_texture = (mesh.getFace(faceIndex).texcoord.size() > 0) && material.getDiffuseTextureFilename().size() > 0;
+	bool has_texture = !mesh.getFace(faceIndex).texcoord.empty() && !material.getDiffuseTextureFilename().empty();
 	string diffuse_tex_filename = material.getDiffuseTextureFilename();
-	Tucano::Texture diffuse_tex;
-	Tucano::ImageImporter::loadPPMImage(diffuse_tex_filename, &diffuse_tex);
-	std::cout <<  has_texture << std::endl;
+	int w = 0;
+    int h = 0;
+    const auto textureData = Tucano::ImageImporter::loadPPMImage(diffuse_tex_filename, w, h);
 
     // Interpolating the normal
     const auto &currVertexIds = precomputedData.faceVertexIds[faceIndex];
@@ -465,23 +461,25 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
 			Eigen::Vector3f lightDirection = (lightPosition - hitPosition).normalized();
 			const Eigen::Vector3f ambient = lightIntensity.cwiseProduct(material.getAmbient());
 
-		
-
         // Diffuse term
         float cos1 = fmaxf(0, lightDirection.dot(faceNormal));
 		Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
-		
 
 		if (has_texture) {
-			vector<Eigen::Vector2f> texcoord = mesh.getFace(faceIndex).texcoord;
-			for (Eigen::Vector2f tex : texcoord)
-				std::cout << tex << endl;
-				
-			
-			//Tucano::Texture diffuseTexture = material.getDiffuseTexture()//mesh.getTexCoord(faceIndex, 1);
-			//diffuse = lightIntensity.cwiseProduct(diffuseTexture) * cos1;
-		}
-        
+			const vector<Eigen::Vector2f> texCoord = mesh.getFace(faceIndex).texcoord;
+            Eigen::Vector2f textureCoord = areaV1V2Hitpoint * texCoord[0] + areaV0V2Hitpoint * texCoord[1] + areaV0V1Hitpoint * texCoord[2];
+            textureCoord.normalize();
+
+            int texX = (int) floor(textureCoord.x() * w);
+            int texY = (int) floor(textureCoord.y() * h);
+
+            const int coord = texY * w + texX;
+            return {
+                textureData[coord],
+                textureData[coord + 1],
+                textureData[coord + 2]
+            }
+        }
 
 			// Specular term
 			const Eigen::Vector3f eyeDirection = (origin - hitPosition).normalized();
