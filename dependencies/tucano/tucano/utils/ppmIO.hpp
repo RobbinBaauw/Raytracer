@@ -32,8 +32,6 @@ namespace ImageImporter
 {
 
 static bool loadPPMImage (string filename, Tucano::Texture* tex);
-static vector<float> loadPPMImageData(string filename, int& w, int& h);
-
 
 static vector<float> loadPPMImageData (string filename, int &w, int &h, Tucano::Texture* tex)
 {

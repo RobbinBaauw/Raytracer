@@ -35,21 +35,31 @@ void Flyscene::initialize(int width, int height) {
     mesh.normalizeModelMatrix();
 
     // pass all the materials to the Phong Shader
-	for (auto& material : materials) {
-		if (!material.getDiffuseTextureFilename().empty()) {
-			string diffuse_tex_filename = material.getDiffuseTextureFilename();
-			Tucano::Texture tex;
-			int w = 0;
-			int h = 0;
-			vector<float> textureData = Tucano::ImageImporter::loadPPMImageData(diffuse_tex_filename, w, h, &tex);
-			texturedatas.insert({ diffuse_tex_filename, textureData });
-			textures.insert({ diffuse_tex_filename, tex });
-		}
-		
-		
-		std::cout << material.getDiffuseTexture().isEmpty() << std::endl;
-		phong.addMaterial(material);
-	}
+    for (auto &material : materials) {
+        if (!material.getDiffuseTextureFilename().empty()) {
+            string diffuse_tex_filename = material.getDiffuseTextureFilename();
+
+            Tucano::Texture tex;
+            int w = 0;
+            int h = 0;
+            vector<float> textureData = Tucano::ImageImporter::loadPPMImageData(diffuse_tex_filename, w, h, &tex);
+
+            vector<Eigen::Vector3f> textureDataVector;
+            for (size_t i = 0; i < textureData.size(); i += 3) {
+                textureDataVector.emplace_back(Eigen::Vector3f(
+                        textureData[i],
+                        textureData[i + 1],
+                        textureData[i + 2]
+                ));
+            }
+            texturedatas.insert({diffuse_tex_filename, textureDataVector});
+            textures.insert({diffuse_tex_filename, tex});
+        }
+
+
+        std::cout << material.getDiffuseTexture().isEmpty() << std::endl;
+        phong.addMaterial(material);
+    }
     // set the color and size of the sphere to represent the light sources
     // same sphere is used for all sources
     lightrep.setColor(Eigen::Vector4f(1.0, 1.0, 0.0, 1.0));
@@ -103,7 +113,7 @@ void Flyscene::initialize(int width, int height) {
         boxMain.addFaceIndex(i);
     }
 
-	boxMain.splitBox(precomputedData);
+    boxMain.splitBox(precomputedData);
     boxMain.computeDepth();
 
     startDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
@@ -298,7 +308,7 @@ void Flyscene::paintGL(void) {
 
 void Flyscene::startDebugRay(const Eigen::Vector2f &mouseCoords) {
 
-	boxMain.resetHitByRay();
+    boxMain.resetHitByRay();
 
     rays.clear();
 
@@ -437,18 +447,16 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
 
     Tucano::Material::Mtl &material = materials[materialIndex];
 
-	bool has_texture = mesh.getFace(faceIndex).texcoord.size() > 2 && !material.getDiffuseTextureFilename().empty();
-	
-	string diffuse_tex_filename = material.getDiffuseTextureFilename();
-	const auto textureData = texturedatas.at(diffuse_tex_filename);
-	Tucano::Texture tex = textures.at(diffuse_tex_filename);
-	int w = tex.getWidth();
-	int h = tex.getHeight();
+    bool has_texture = mesh.getFace(faceIndex).texcoord.size() > 2 && !material.getDiffuseTextureFilename().empty();
+    string diffuse_tex_filename = material.getDiffuseTextureFilename();
+    const auto &textureData = texturedatas[diffuse_tex_filename];
+    auto &tex = textures[diffuse_tex_filename];
+    int w = tex.getWidth();
+    int h = tex.getHeight();
 
     // Interpolating the normal
     const auto &currVertexIds = precomputedData.faceVertexIds[faceIndex];
 
-    // TODO add drawing of why this way of calculating is logical
     const Eigen::Vector3f &v0 = precomputedData.vertices[get<0>(currVertexIds)];
     const Eigen::Vector3f &v1 = precomputedData.vertices[get<1>(currVertexIds)];
     const Eigen::Vector3f &v2 = precomputedData.vertices[get<2>(currVertexIds)];
@@ -465,7 +473,7 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
     faceNormal = faceNormal / faceArea;
     faceNormal.normalize();
 
-	const vector<Eigen::Vector2f> texCoord = mesh.getFace(faceIndex).texcoord;
+    const vector<Eigen::Vector2f> texCoord = mesh.getFace(faceIndex).texcoord;
 
     // Iterate over all the present lights
     for (const auto &lightPosition : lights) {
@@ -477,24 +485,34 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
 
         // Diffuse term
         float cos1 = fmaxf(0, lightDirection.dot(faceNormal));
-		Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
+        Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
 
-		if (has_texture) {
-			
-            Eigen::Vector2f textureCoord = areaV1V2Hitpoint * texCoord[0] + areaV0V2Hitpoint * texCoord[1] + areaV0V1Hitpoint * texCoord[2];
-            textureCoord.normalize();
+        if (has_texture) {
 
-            int texX = (int) floor(textureCoord.x() * w);
-            int texY = (int) floor(textureCoord.y() * h);
+            // http://www.cs.uu.nl/docs/vakken/gr/2011/Slides/06-texturing.pdf
+            Eigen::Vector2f uv = areaV1V2Hitpoint * texCoord[0] + areaV0V2Hitpoint * texCoord[1] + areaV0V1Hitpoint * texCoord[2];
 
-            int coord = (texY * w + texX) * 3;
-			
-			Eigen::Vector3f diffuseTexture = Eigen::Vector3f(textureData[coord],
-				textureData[coord + 1],
-				textureData[coord + 2]);
+            float u = uv.x();
+            float v = uv.y();
 
-			diffuse = lightIntensity.cwiseProduct(diffuseTexture) * cos1;
-		
+            int projU = floor(u * (float) w);
+            int projV = floor(v * (float) h);
+
+            int uacc = floor(u * (float) w - (float) projU);
+            int vacc = floor(v * (float) h - (float) projV);
+
+            const Eigen::Vector3f &cij = textureData[projV * w + projU];
+            const Eigen::Vector3f &ciij = textureData[projV * w + projU + 1];
+            const Eigen::Vector3f &cijj = textureData[(projV + 1) * w + projU];
+            const Eigen::Vector3f &ciijj = textureData[(projV + 1) * w + projU + 1];
+
+            Eigen::Vector3f interpolation =
+                    (1 - uacc) * (1 - vacc) * cij +
+                    uacc * (1 - vacc) * ciij +
+                    (1 - uacc) * vacc * cijj +
+                    uacc * vacc * ciijj;
+
+            diffuse = lightIntensity.cwiseProduct(interpolation) * cos1;
         }
 
 			// Specular term

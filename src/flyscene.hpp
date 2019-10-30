@@ -35,7 +35,7 @@
 
 #define SSAALEVEL 1 // The SSAA level (3 => 3^2 = 9 times as many pixels)
 
-//#define THREADCOUNTOVERRIDE 11 // The amount of threads (if not defined it uses max)
+//#define THREADCOUNTOVERRIDE 1 // The amount of threads (if not defined it uses max)
 
 #define MAXREFLECTIONS 5 // The maximum amount of reflections / refractions
 #define MAXDEBUGREFLECTIONS 10 // The maximum amount of reflections in the debug tracer
@@ -73,7 +73,7 @@ public:
     /**
      * @brief Add a new light source
      */
-	void addLight() { lights.emplace_back(flycamera.getCenter(), Eigen::Vector3f(1, 1, 1)); }
+    void addLight() { lights.push_back(flycamera.getCenter()); }
 
     /**
      * @brief Create a debug ray at the current camera location and passing
@@ -178,9 +178,9 @@ private:
     // boundingBox that contains the whole mesh and is the root
     boundingBox boxMain;
 
-	//preloaded TextureData for the images 
-	map<string, vector<float>> texturedatas;
-	map<string, Tucano::Texture> textures;
+    //preloaded TextureData for the images
+    map<string, vector<Eigen::Vector3f>> texturedatas;
+    map<string, Tucano::Texture> textures;
 
 };
 
