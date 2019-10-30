@@ -80,7 +80,13 @@ static bool loadMTL (vector<Tucano::Material::Mtl>& materials, string filename)
             {            
                 Tucano::Material::Mtl newmtl;
                 materials.push_back(newmtl);
-                materials.back().setName (tokens[1]);
+
+                string mtlfn = tokens[1];
+                // remove newline or carriage return characters from the end
+                mtlfn.erase(std::remove(mtlfn.begin(), mtlfn.end(), '\n'), mtlfn.end());
+                mtlfn.erase(std::remove(mtlfn.begin(), mtlfn.end(), '\r'), mtlfn.end());
+
+                materials.back().setName (mtlfn);
             }
             else if (tokens[0].compare("Ns") == 0)
             {

@@ -39,5 +39,8 @@ void main(void)
     vec3 specular = light_intensity * ks *  pow(max(dot(light_reflection, eye_direction), 0.0), shininess);
 
     out_Color = vec4(min(ambient.xyz + diffuse.xyz + specular.xyz, vec3(1.0)), 1.0);
+    
+    // if (has_texture)
+    //     out_Color = vec4(texCoords, 0.0, 1.0);
 }
 

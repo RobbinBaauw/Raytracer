@@ -122,15 +122,17 @@ public:
         {
             int matid = mesh.getMaterialId (i);
 
-            bool has_texture = mesh.hasAttribute("in_TexCoords") && !phongmaterials[matid].getDiffuseTexture().isEmpty();
+            bool has_texture = mesh.hasTexCoordAttribute(i) && !phongmaterials[matid].getDiffuseTexture().isEmpty();
      
             phong_shader.setUniform("has_texture", has_texture);
             if (has_texture)
-                phong_shader.setUniform("model_texture", phongmaterials[matid].getDiffuseTexture().bind());
+            {                
+                phong_shader.setUniform("model_texture", phongmaterials[matid].getDiffuseTexture().bind());                
+            }
             else
+            {
                 phong_shader.setUniform("model_texture", 0);
-
-            
+            }
 
             if (matid >= 0 && matid < phongmaterials.size())
             {
@@ -148,9 +150,14 @@ public:
             }
 
             mesh.setAttributeLocation(phong_shader);
+            if (has_texture)
+                mesh.setTexCoordAttributeLocation(phong_shader, i);
+
             mesh.renderIndexBuffer(i);
             if (has_texture)
-               phongmaterials[matid].getDiffuseTexture().unbind();
+            {
+                phongmaterials[matid].getDiffuseTexture().unbind();
+            }
         }
 
         phong_shader.unbind();

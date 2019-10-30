@@ -47,6 +47,37 @@ static string getPathName(const string& s)
    return s.substr(0, found+1);
 }
 
+
+static void createTexCoordsArrays(const vector< vector<GLuint> >& vert_indices, const vector< vector<GLuint> >& texcoords_indices, const vector<Eigen::Vector2f>& texcoords, int num_verts, vector< vector<Eigen::Vector2f> >& texcoordarrays)
+{
+    texcoordarrays.clear();
+
+        // initialize all tex coords with (-1,-1)
+    for (int i = 0; i < texcoords_indices.size(); ++i)
+    {
+        texcoordarrays.push_back ( vector< Eigen::Vector2f >() );    
+        for (int j = 0; j < num_verts; ++j)
+        {
+            texcoordarrays.back().push_back(Eigen::Vector2f(-1, -1));
+        }
+    }
+
+
+    // initialize array of tex coords
+    for (int i = 0; i < texcoords_indices.size(); ++i)
+    {
+        for (int j = 0; j < texcoords_indices[i].size(); ++j)
+        {
+
+            int vert_id = vert_indices[i][j];
+            int id_texcoord = texcoords_indices[i][j];
+            Eigen::Vector2f coord = texcoords[id_texcoord];            
+            texcoordarrays[i][vert_id] = coord;
+        }
+    }
+
+}
+
 static void computeNormals(const vector<Eigen::Vector4f>& vertices, const vector< vector<GLuint> > indices, vector<Eigen::Vector3f>& normals)
 {
     // initialize arrays of empty normals
@@ -93,6 +124,7 @@ static void loadObjFile (Tucano::Mesh& mesh, vector<Tucano::Material::Mtl>& mtls
     vector<Eigen::Vector4f> color;
     vector<int> elements_material_id;
     // array of indices (every material has its own id)
+    vector< vector<Eigen::Vector2f> > texcoordarrays;
     vector < vector<GLuint> > elementsVertices;
     vector < vector<GLuint> > elementsNormals;
     vector < vector<GLuint> > elementsTexIDs;
@@ -145,9 +177,14 @@ static void loadObjFile (Tucano::Mesh& mesh, vector<Tucano::Material::Mtl>& mtls
             }
 
             istringstream s(line.substr(7));
+            string mtlfn = line.substr(7);
+            // remove newline or carriage return characters from the end
+            mtlfn.erase(std::remove(mtlfn.begin(), mtlfn.end(), '\n'), mtlfn.end());
+            mtlfn.erase(std::remove(mtlfn.begin(), mtlfn.end(), '\r'), mtlfn.end());
+
             for (int i = 0; i < mtls.size(); ++i)
             {
-                if (mtls[i].getName().compare(line.substr(7)) == 0)
+                if (mtls[i].getName().compare(mtlfn) == 0)
                 {
                     current_mat = i;
                 }
@@ -197,7 +234,7 @@ static void loadObjFile (Tucano::Mesh& mesh, vector<Tucano::Material::Mtl>& mtls
             std::stringstream liness(line.substr(2));
             std::string buf, element;
 
-            std::vector<std::string> face_element; // Create vector to hold our face elements
+            std::vector<std::string> face_element; // Create vector to hold our face elements from file
             while (liness >> buf)
                 face_element.push_back(buf);
 
@@ -237,7 +274,9 @@ static void loadObjFile (Tucano::Mesh& mesh, vector<Tucano::Material::Mtl>& mtls
     if(in.is_open())
     {
         in.close();
-    }    
+    }
+
+
 
     
     // load attributes found in file in GL buffers
@@ -250,22 +289,22 @@ static void loadObjFile (Tucano::Mesh& mesh, vector<Tucano::Material::Mtl>& mtls
 
     if (norm.size() != vert.size())
     {
+        norm.clear();
         computeNormals(vert, elementsVertices, norm);
-
     }
     
-    if (norm.size() > 0)
+    if (norm.size() == vert.size())
     {
         mesh.loadNormals(norm);
         mesh.storeNormalData (norm);
     }
 
     // only supports tex coord per vertex and not per face
-    if (texCoord.size() == vert.size())
-    {
-        mesh.loadTexCoords(texCoord);
-        mesh.storeTexCoordData (texCoord);
-    }
+    // if (texCoord.size() == vert.size())
+    // {
+    //     mesh.loadTexCoords(texCoord);
+    //     mesh.storeTexCoordData (texCoord);
+    // }
 
     if (color.size() == vert.size())
     {
@@ -282,10 +321,24 @@ static void loadObjFile (Tucano::Mesh& mesh, vector<Tucano::Material::Mtl>& mtls
         }
     }
 
+    
+    if (texCoord.size() > 0)
+    {
+        createTexCoordsArrays(elementsVertices, elementsTexIDs, texCoord, vert.size(), texcoordarrays);
+    
+        for (int i = 0; i < texcoordarrays.size(); ++i)
+        {        
+            //if (texcoordarrays[i].size() > 0)
+            {
+                mesh.loadTexCoords(texcoordarrays[i]);
+                mesh.storeTexCoordData (texcoordarrays[i]);
+            }
+        }
+    }
     mesh.createFaces();
 
     // sets the default locations for accesing attributes in shaders
-    mesh.setDefaultAttribLocations();
+    //mesh.setDefaultAttribLocations();
 
     std::cout << "OBJ info:" << std::endl;
     std::cout << "number vertices : " << mesh.getNumberOfVertices() << std::endl;

@@ -240,6 +240,7 @@ class Face
 public:
 
     vector<GLuint> vertex_ids;
+    vector< Eigen::Vector2f > texcoord;
     int material_id = -1;
     Eigen::Vector3f normal = Eigen::Vector3f::Zero();
 
@@ -270,6 +271,8 @@ protected:
     ///Array of generic attributes
     vector < Tucano::VertexAttribute > vertex_attributes;
 
+    vector < Tucano::VertexAttribute > texcoord_attributes;
+
     ///Number of vertices in vertices array.
     unsigned int numberOfVertices = 0;
 
@@ -288,9 +291,10 @@ protected:
     // these vectors below are only maintained if the geomeetry is explicitly stored (with store methods)
     vector<Eigen::Vector4f> vertices;
     vector<Eigen::Vector3f> normals;
-    vector<Eigen::Vector2f> tex_coords;
+    vector< vector<Eigen::Vector2f> > tex_coords;
     vector<Eigen::Vector4f> colors;
-    vector < vector<GLuint> > indices_vertices;    
+    vector < vector<GLuint> > indices_vertices;
+
     vector<Face> faces;
 
     /// Index Buffer
@@ -298,6 +302,9 @@ protected:
 
     // for materials indices (e.g. mtllib)
     vector<int> material_ids;
+
+    // for texture indices (e.g. multiple textures per model)
+    vector<int> texture_ids;
 
     /// Vertex Array Object ID (VAO is just a descriptor, does not contain any data)
     GLuint vao_id = 0;
@@ -326,8 +333,7 @@ public:
     * @brief Default Constructor.
     */
     Mesh (void)
-    {
-
+    {        
         glGenVertexArrays(1, &vao_id);
         vao_sptr = std::shared_ptr < GLuint > ( 
                     new GLuint (vao_id),
@@ -340,7 +346,7 @@ public:
 
         #ifdef TUCANODEBUG
         Misc::errorCheckFunc(__FILE__, __LINE__);
-        #endif
+        #endif        
     }
 
 
@@ -389,12 +395,12 @@ public:
     Eigen::Vector3f& getNormal (int i) { return normals[i]; }
 
     /**
-     * @brief Get the i-th tex coord
+     * @brief Get the i-th tex coord of the j-th index buffer
      * Note that the geometry must be explicitily stored with the store methods
      * @param i The index of the tex coord
      * @return The i-th tex coords as a Vector2f
      */
-    Eigen::Vector2f& getTexCoord (int i) { return tex_coords[i]; }
+    Eigen::Vector2f& getTexCoord (int i, int j) { return tex_coords[j][i]; }
 
     /**
      * @brief Get the i-th color
@@ -432,10 +438,11 @@ public:
 
     void storeVertexData (vector<Eigen::Vector4f>& verts) {vertices = verts;}
     void storeNormalData (vector<Eigen::Vector3f>& norms) {normals = norms;}
-    void storeTexCoordData (vector<Eigen::Vector2f>& txcoords) {tex_coords = txcoords;}
+    void storeTexCoordData (vector<Eigen::Vector2f>& txcoords) {tex_coords.push_back(txcoords);}
     void storeColorData (vector<Eigen::Vector4f>& clrs) {colors = clrs;}
     
     void storeVertexIdsData (vector<GLuint>& ids) {indices_vertices.push_back(ids);}
+
     void storeMaterialIdsData (vector<int>& ids) {material_ids = ids;}
 
     void createFaces (void)
@@ -452,6 +459,13 @@ public:
                 f.vertex_ids.push_back(indices_vertices[id][i]);
                 f.vertex_ids.push_back(indices_vertices[id][i+1]);
                 f.vertex_ids.push_back(indices_vertices[id][i+2]);
+
+                if (!tex_coords.empty())
+                {
+                    f.texcoord.push_back(tex_coords[id] [ indices_vertices[id][i]   ]);
+                    f.texcoord.push_back(tex_coords[id] [ indices_vertices[id][i+1] ]);
+                    f.texcoord.push_back(tex_coords[id] [ indices_vertices[id][i+2] ]);
+                }
 
                 if (!material_ids.empty())
                 {
@@ -648,7 +662,7 @@ public:
      */
     void loadTexCoords (vector<Eigen::Vector2f> &tex, bool normalize = false)
     {
-        numberOfTexCoords = tex.size();
+        numberOfTexCoords += tex.size();
 
         if (normalize)
         {
@@ -674,11 +688,11 @@ public:
                                                (tex[i][0] - texXmin) / (texXmax - texXmin),
                                            (tex[i][1] - texYmin) / (texYmax - texYmin) ) );
             }
-            createAttribute("in_TexCoords", tex_normalized);
+            createTexCoordAttribute("in_TexCoords", tex_normalized);
         }
         else
         {
-            createAttribute("in_TexCoords", tex);
+            createTexCoordAttribute("in_TexCoords", tex);
         }
     }
 
@@ -918,11 +932,12 @@ public:
             {
                 vertex_attributes[i].setLocation(2);
             }
-            else if (!vertex_attributes[i].getName().compare("in_TexCoords"))
-            {
-                vertex_attributes[i].setLocation(3);
-            }
         }
+        for (unsigned int i = 0; i < texcoord_attributes.size(); ++i)
+        {
+            texcoord_attributes[i].setLocation(3);
+        }
+
     }
 
     /**
@@ -939,6 +954,14 @@ public:
                 return true;
             }
         }
+        return false;
+    }
+
+    bool hasTexCoordAttribute (int id) const    
+    {
+        if (texcoord_attributes.size() > id)
+            return true;
+
         return false;
     }
 
@@ -988,6 +1011,18 @@ public:
 	}
 
 
+    void setTexCoordAttributeLocation (Shader *shader, int id)
+    {               
+        GLint loc = shader->getAttributeLocation(texcoord_attributes[id].getName().c_str());
+        texcoord_attributes[id].setLocation(loc);
+    }
+
+    void setTexCoordAttributeLocation (const Shader& shader, int id)
+    {
+        setTexCoordAttributeLocation((Shader*)(&shader), id);
+    }
+
+
     /**
      * @brief Sets the location of a generic vertex attribute.
      * @param name Name of the given attribute
@@ -1003,6 +1038,7 @@ public:
             }
         }
     }
+
 
 
     /**
@@ -1100,6 +1136,30 @@ public:
         return &vertex_attributes[vertex_attributes.size()-1];
     }
 
+    VertexAttribute* createTexCoordAttribute(string name, vector<Eigen::Vector2f> &attrib)
+    {
+        // create new vertex attribute
+        VertexAttribute va (name, attrib.size(), 2, GL_FLOAT);
+
+        float * attrib_array = new float[va.getSize()*va.getElementSize()];
+
+        int temp = 0;
+        for(int i = 0; i < va.getSize()*va.getElementSize(); i+=2) {
+            attrib_array[i] = attrib[temp][0];
+            attrib_array[i+1] = attrib[temp][1];
+            temp++;
+        }
+
+        // fill buffer with attribute data
+        va.bind();
+        glBufferData(va.getArrayType(), va.getSize()*va.getElementSize()*va.getTypeSize(), attrib_array, GL_STATIC_DRAW);
+        va.unbind();
+
+        texcoord_attributes.push_back(va);
+        delete [] attrib_array;
+        return &texcoord_attributes[texcoord_attributes.size()-1];
+    }
+
 	/**
 	 * @brief Creates a new mesh attribute, not loading contents into it.
 	 * @param name Name of the attribute.
@@ -1143,6 +1203,10 @@ public:
         {
             vertex_attributes[i].enable();
         }
+        if (texcoord_attributes.size() > index_buffer)
+        {
+            texcoord_attributes[index_buffer].enable();
+        }   
 
         #ifdef TUCANODEBUG
         Misc::errorCheckFunc(__FILE__, __LINE__);

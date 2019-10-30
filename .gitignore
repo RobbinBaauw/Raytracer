@@ -1,5 +1,6 @@
 *.ppm
 build/
+!resources/models/*.ppm
 
 # visual studio 2019
 /.vs
