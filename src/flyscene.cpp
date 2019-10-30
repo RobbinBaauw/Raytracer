@@ -21,10 +21,9 @@ void Flyscene::initialize(int width, int height) {
     // set the camera's projection matrix
     flycamera.setPerspectiveMatrix(60.0, (float) width / (float) height, 0.1f, 100.0f);
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
-	lights.push_back(Eigen::Vector3f(-0.0650216, -0.0600001, -0.0960241));
 
     // load the OBJ file and materials
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/Excalibur2.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
 #ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -81,16 +80,16 @@ void Flyscene::initialize(int width, int height) {
     start = std::chrono::steady_clock::now();
 #endif
 
-    //std::vector<Eigen::Vector3f> boundaries = boundingVectors();
-    //boxMain = boundingBox(boundaries[0], boundaries[1]);
+    std::vector<Eigen::Vector3f> boundaries = boundingVectors();
+    boxMain = boundingBox(boundaries[0], boundaries[1]);
 
-    //int numb_faces = mesh.getNumberOfFaces();
-    //for (int i = 0; i < numb_faces; ++i) {
-      //  boxMain.addFaceIndex(i);
-    //}
+    int numb_faces = mesh.getNumberOfFaces();
+    for (int i = 0; i < numb_faces; ++i) {
+        boxMain.addFaceIndex(i);
+    }
 
-	//boxMain.splitBox(precomputedData);
-    //boxMain.computeDepth();
+	boxMain.splitBox(precomputedData);
+    boxMain.computeDepth();
 
     startDebugRay(Eigen::Vector2f(width / 2.0, height / 2.0));
 
