@@ -31,14 +31,16 @@
 #define PAINTGL // Enables preview window
 
 #define SOFTSHADOWRADIUS 0.3f // The radius of the lights for soft shadows
-#define MAXSOFTSHADOWPOINTS 12 // The amount of points used for soft shadows
+#define MAXSOFTSHADOWPOINTS 15 // The amount of points used for soft shadows
 
 #define SSAALEVEL 1 // The SSAA level (3 => 3^2 = 9 times as many pixels)
 
 //#define THREADCOUNTOVERRIDE 11 // The amount of threads (if not defined it uses max)
 
-#define MAXREFLECTIONS 5 // The maximum amount of reflections / refractions
+#define MAXREFLECTIONS 1 // The maximum amount of reflections / refractions
 #define MAXDEBUGREFLECTIONS 10 // The maximum amount of reflections in the debug tracer
+
+typedef std::pair<Eigen::Vector3f, Eigen::Vector3f> lightColor;
 
 class Flyscene {
 
@@ -71,7 +73,7 @@ public:
     /**
      * @brief Add a new light source
      */
-	void addLight() { lights.push_back(flycamera.getCenter());}
+	void addLight() { lights.push_back(make_pair(flycamera.getCenter(), Eigen::Vector3f(1, 1, 1))); }
 
     /**
      * @brief Create a debug ray at the current camera location and passing
@@ -155,8 +157,8 @@ private:
   // a frustum to represent the camera in the scene
   Tucano::Shapes::Sphere lightrep;
 
-  // light sources for ray tracing
-  vector<Eigen::Vector3f> lights;
+    // light sources for ray tracing
+    vector<lightColor> lights;
 
     // sheres for ray tracing
     vector<Sphere> spheres;

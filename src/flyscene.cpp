@@ -23,7 +23,7 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/toy_on_plane.obj");
 #ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -41,7 +41,8 @@ void Flyscene::initialize(int width, int height) {
     lightrep.setSize(0.01);
 
     // create a first ray-tracing light source at some random position
-    lights.emplace_back(-1.0, 1.0, 1.0);
+    lights.emplace_back(std::make_pair(Eigen::Vector3f(-0.5, 2.0, 3.0), Eigen::Vector3f(0.6, 0.2, 0.4)));
+    lights.emplace_back(std::make_pair(Eigen::Vector3f(1.0, 2.0, 3.0), Eigen::Vector3f(1.0, 0, 0)));
 
     // scale the camera representation (frustum) for the ray debug
     camerarep.shapeMatrix()->scale(0.2);
@@ -185,14 +186,14 @@ void Flyscene::precomputeLights() {
 #ifdef HARDSHADOW
     for (size_t i = 0; i < lights.size(); i++) {
         const auto &light = lights[i];
-        precomputedData.lights[i].emplace_back(light);
+        precomputedData.lights[i].emplace_back(light.first);
     }
 #endif
 
 #ifdef SOFTSHADOW
     for (size_t i = 0; i < lights.size(); i++) {
 
-        const auto &light = lights[i];
+        const auto &light = lights[i].first;
 
         for (int n = 0; n < MAXSOFTSHADOWPOINTS; n++) {
             float theta = (2.0f * (float) n * (float) M_PI) / MAXSOFTSHADOWPOINTS;
@@ -225,6 +226,9 @@ void Flyscene::paintGL() {
   //   std::cout<<"face   normal "<<face.normal.transpose() << std::endl << std::endl;
   // }
 
+    // position the scene light at the last ray-tracing light source
+    scene_light.resetViewMatrix();
+    scene_light.viewMatrix()->translate(-lights.back().first);
 
     if (splitPreviewDepth != -1) {
         boxMain.renderLeafBoxes(flycamera, scene_light, renderIntersection, splitPreviewDepth, 0);
@@ -255,7 +259,7 @@ void Flyscene::paintGL() {
     // render ray tracing light sources as yellow spheres
     for (const auto &light : lights) {
         lightrep.resetModelMatrix();
-        lightrep.modelMatrix()->translate(light);
+        lightrep.modelMatrix()->translate(light.first);
         lightrep.render(flycamera, scene_light);
     }
 
@@ -440,9 +444,9 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
     faceNormal.normalize();
 
     // Iterate over all the present lights
-    for (const Eigen::Vector3f &lightPosition : lights) {
+    for (const auto &lightPosition : lights) {
 
-			// Ambient term
+        Eigen::Vector3f lightDirection = (lightPosition.first - hitPosition).normalized();
 
 			Eigen::Vector3f lightDirection = (lightPosition - hitPosition).normalized();
 			const Eigen::Vector3f ambient = lightIntensity.cwiseProduct(material.getAmbient());
@@ -458,6 +462,8 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
 			float cos2 = fmax(0, reflectedLight.dot(eyeDirection));
 			Eigen::Vector3f specular = lightIntensity.cwiseProduct(material.getSpecular()) * (pow(cos2, material.getShininess()));
 
+        const auto colorSum = diffuse + specular + ambient;
+        Eigen::Vector3f minSum = colorSum.cwiseProduct(lightPosition.second).cwiseMax(0.0).cwiseMin(1.0);
 
 			const auto colorSum = diffuse + specular + ambient;
 			const auto colorSumMinMax = colorSum.cwiseMax(0.0).cwiseMin(1.0);
@@ -531,7 +537,7 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
             Tucano::Material::Mtl &material = materials[materialIndex];
 
             const auto &specular = material.getSpecular();
-            float EPSILON = 0.01f;
+            float EPSILON = 0.25f;
             if (specular.x() > EPSILON || specular.y() > EPSILON || specular.z() > EPSILON) {
 
                 // Reflection
@@ -554,9 +560,9 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
         // Background color
         if (recursionDepth == 0) {
             return {
-                    0.7,
-                    0.9,
-                    0.9
+                    0.4,
+                    0.4,
+                    0.4
             };
         }
 
@@ -788,5 +794,5 @@ Eigen::Vector3f Flyscene::getLightIntensity(const Eigen::Vector3f &hitPosition) 
     // Calculate the light intensity and return
     float maximum = 1;
     lightIntensity = min(lightIntensity, maximum);
-    return {lightIntensity, lightIntensity, lightIntensity};
+    return {lightIntensity * 0.6f, lightIntensity * 0.2f, lightIntensity * 0.4f};
 }
