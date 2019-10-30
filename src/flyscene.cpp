@@ -36,7 +36,17 @@ void Flyscene::initialize(int width, int height) {
 
     // pass all the materials to the Phong Shader
 	for (auto& material : materials) {
-
+		if (!material.getDiffuseTextureFilename().empty()) {
+			string diffuse_tex_filename = material.getDiffuseTextureFilename();
+			Tucano::Texture tex;
+			int w = 0;
+			int h = 0;
+			vector<float> textureData = Tucano::ImageImporter::loadPPMImageData(diffuse_tex_filename, w, h, &tex);
+			texturedatas.insert({ diffuse_tex_filename, textureData });
+			textures.insert({ diffuse_tex_filename, tex });
+		}
+		
+		
 		std::cout << material.getDiffuseTexture().isEmpty() << std::endl;
 		phong.addMaterial(material);
 	}
@@ -427,11 +437,13 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
 
     Tucano::Material::Mtl &material = materials[materialIndex];
 
-	bool has_texture = !mesh.getFace(faceIndex).texcoord.empty() && !material.getDiffuseTextureFilename().empty();
+	bool has_texture = mesh.getFace(faceIndex).texcoord.size() > 2 && !material.getDiffuseTextureFilename().empty();
+	
 	string diffuse_tex_filename = material.getDiffuseTextureFilename();
-	int w = 0;
-    int h = 0;
-    const auto textureData = Tucano::ImageImporter::loadPPMImage(diffuse_tex_filename, w, h);
+	const auto textureData = texturedatas.at(diffuse_tex_filename);
+	Tucano::Texture tex = textures.at(diffuse_tex_filename);
+	int w = tex.getWidth();
+	int h = tex.getHeight();
 
     // Interpolating the normal
     const auto &currVertexIds = precomputedData.faceVertexIds[faceIndex];
@@ -453,6 +465,8 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
     faceNormal = faceNormal / faceArea;
     faceNormal.normalize();
 
+	const vector<Eigen::Vector2f> texCoord = mesh.getFace(faceIndex).texcoord;
+
     // Iterate over all the present lights
     for (const auto &lightPosition : lights) {
 
@@ -466,19 +480,21 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
 		Eigen::Vector3f diffuse = lightIntensity.cwiseProduct(material.getDiffuse()) * cos1;
 
 		if (has_texture) {
-			const vector<Eigen::Vector2f> texCoord = mesh.getFace(faceIndex).texcoord;
+			
             Eigen::Vector2f textureCoord = areaV1V2Hitpoint * texCoord[0] + areaV0V2Hitpoint * texCoord[1] + areaV0V1Hitpoint * texCoord[2];
             textureCoord.normalize();
 
             int texX = (int) floor(textureCoord.x() * w);
             int texY = (int) floor(textureCoord.y() * h);
 
-            const int coord = (texY * w + texX) * 3;
-            return {
-                textureData[coord],
-                textureData[coord + 1],
-                textureData[coord + 2]
-            };
+            int coord = (texY * w + texX) * 3;
+			
+			Eigen::Vector3f diffuseTexture = Eigen::Vector3f(textureData[coord],
+				textureData[coord + 1],
+				textureData[coord + 2]);
+
+			diffuse = lightIntensity.cwiseProduct(diffuseTexture) * cos1;
+		
         }
 
 			// Specular term

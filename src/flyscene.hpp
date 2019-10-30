@@ -177,6 +177,11 @@ private:
 
     // boundingBox that contains the whole mesh and is the root
     boundingBox boxMain;
+
+	//preloaded TextureData for the images 
+	map<string, vector<float>> texturedatas;
+	map<string, Tucano::Texture> textures;
+
 };
 
 #endif // FLYSCENE

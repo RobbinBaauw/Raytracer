@@ -32,8 +32,10 @@ namespace ImageImporter
 {
 
 static bool loadPPMImage (string filename, Tucano::Texture* tex);
+static vector<float> loadPPMImageData(string filename, int& w, int& h);
 
-static vector<float> loadPPMImage (string filename, int &w, int &h)
+
+static vector<float> loadPPMImageData (string filename, int &w, int &h, Tucano::Texture* tex)
 {
 
 
@@ -49,7 +51,6 @@ static vector<float> loadPPMImage (string filename, int &w, int &h)
     vector<float> data;
     string header;
     in >> header;
-    int w, h;
     in >> w >> h;
     float max_value;
     in >> max_value;
@@ -76,6 +77,7 @@ static vector<float> loadPPMImage (string filename, int &w, int &h)
             flipped.push_back( data[(j*w + i)*3 + 2]);
         }
     }
+
 
     tex->create (GL_TEXTURE_2D, GL_RGBA32F, w, h, GL_RGB, GL_FLOAT, &flipped[0], 0);
 
