@@ -473,12 +473,12 @@ Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &ori
             int texX = (int) floor(textureCoord.x() * w);
             int texY = (int) floor(textureCoord.y() * h);
 
-            const int coord = texY * w + texX;
+            const int coord = (texY * w + texX) * 3;
             return {
                 textureData[coord],
                 textureData[coord + 1],
                 textureData[coord + 2]
-            }
+            };
         }
 
 			// Specular term
