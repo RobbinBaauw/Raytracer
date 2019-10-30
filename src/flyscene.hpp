@@ -71,7 +71,7 @@ public:
     /**
      * @brief Add a new light source
      */
-    void addLight() { lights.push_back(flycamera.getCenter()); }
+	void addLight() { lights.push_back(flycamera.getCenter());}
 
     /**
      * @brief Create a debug ray at the current camera location and passing
