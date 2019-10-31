@@ -8,11 +8,11 @@
 void Flyscene::loadLightsAndSpheres() {
     lights.emplace_back(std::make_pair(Eigen::Vector3f(-1.0f, 1.0f, 1.0f), Eigen::Vector3f(1.0f, 1.0f, 1.0f)));
 
-    const Sphere sphere1 = {
-            Eigen::Vector3f(0, 0, 0.5f),
-            0.5f
-    };
-    spheres.emplace_back(sphere1);
+//    const Sphere sphere1 = {
+//            Eigen::Vector3f(0, 0, 0),
+//            0.5f
+//    };
+//    spheres.emplace_back(sphere1);
 }
 
 void Flyscene::initialize(int width, int height) {
@@ -36,7 +36,7 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-//    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube.obj");
+    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/bunny.obj");
 
 #ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
