@@ -5,7 +5,20 @@
 #include <chrono>
 #include "boundingBox.h"
 
+void Flyscene::loadLightsAndSpheres() {
+    lights.emplace_back(std::make_pair(Eigen::Vector3f(-1.0f, 1.0f, 1.0f), Eigen::Vector3f(1.0f, 1.0f, 1.0f)));
+
+    const Sphere sphere1 = {
+            Eigen::Vector3f(0, 0, 0.5f),
+            0.5f
+    };
+    spheres.emplace_back(sphere1);
+}
+
 void Flyscene::initialize(int width, int height) {
+
+    loadLightsAndSpheres();
+
 #ifdef INFOTIMESTAMPING
     std::cout << "Initializing scene ..." << std::endl;
 
@@ -23,7 +36,8 @@ void Flyscene::initialize(int width, int height) {
     flycamera.setViewport(Eigen::Vector2f((float) width, (float) height));
 
     // load the OBJ file and materials
-    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube.obj");
+//    Tucano::MeshImporter::loadObjFile(mesh, materials, "resources/models/cube.obj");
+
 #ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
     diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -65,9 +79,6 @@ void Flyscene::initialize(int width, int height) {
     lightrep.setColor(Eigen::Vector4f(1.0, 1.0, 0.0, 1.0));
     lightrep.setSize(0.01);
 
-    // create a first ray-tracing light source at some random position
-    lights.emplace_back(std::make_pair(Eigen::Vector3f(-1.0f, 1.0f, 1.0f), Eigen::Vector3f(1.0f, 1.0f, 1.0f)));
-
     // scale the camera representation (frustum) for the ray debug
     camerarep.shapeMatrix()->scale(0.2);
 
@@ -77,6 +88,13 @@ void Flyscene::initialize(int width, int height) {
     std::cout << "Init p1: " << diff.count() << "ms" << std::endl;
     start = std::chrono::steady_clock::now();
 #endif
+
+    visualSpheres = vector<Tucano::Shapes::Sphere>();
+    for (auto &sphere : spheres) {
+        Tucano::Shapes::Sphere tucanoSphere(sphere.radius);
+        tucanoSphere.getModelMatrix().translate(sphere.center);
+        visualSpheres.emplace_back(tucanoSphere);
+    }
 
 #ifdef INFOTIMESTAMPING
     end = std::chrono::steady_clock::now();
@@ -258,9 +276,12 @@ void Flyscene::paintGL() {
         boxMain.renderLeafBoxes(flycamera, scene_light, renderIntersection, splitPreviewDepth, 0);
     }
 
-
     // render the scene using OpenGL and one light source
     phong.render(mesh, flycamera, scene_light);
+
+    for (auto &sphere : visualSpheres) {
+        sphere.render(flycamera, scene_light);
+    }
 
     for (size_t i = 0; i < rays.size(); i++) {
         auto &ray = rays[i];
@@ -348,7 +369,8 @@ void Flyscene::createDebugRay(const Eigen::Vector3f &origin, const Eigen::Vector
         reflection.normalize();
         createDebugRay(hitPoint, reflection, recursionDepth + 1);
 
-//        // Refraction
+        // Refraction
+        // Edit: no time to properly finish :(
 //        refraction.normalize();
 //        createDebugRay(hitPoint, refraction, recursionDepth + 1);
     }
@@ -437,6 +459,10 @@ void Flyscene::raytraceScene() {
 }
 
 Eigen::Vector3f Flyscene::shadeOffFace(int faceIndex, const Eigen::Vector3f &origin, const Eigen::Vector3f &hitPosition, const Eigen::Vector3f &lightIntensity) {
+
+    if (faceIndex == -1) {
+        return {0.7f, 0.9f, 0.0f}; // Default value for spheres
+    }
 
     Eigen::Vector3f color = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
 
@@ -589,6 +615,11 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
 #endif
 
         if (recursionDepth < MAXREFLECTIONS) {
+            if (faceId == -1) {
+                // Sphere is not reflective, as it's not textured at all
+                return localShading;
+            }
+
             int &materialIndex = precomputedData.faceMaterialIds[faceId];
             if (materialIndex == -1) {
                 return localShading;
@@ -597,7 +628,7 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
             Tucano::Material::Mtl &material = materials[materialIndex];
 
             const auto &specular = material.getSpecular();
-            float EPSILON = 0.25f;
+            float EPSILON = 0.25f; // Choose a value from which we call it reflective, fix when implementing illumination model
             if (specular.x() > EPSILON || specular.y() > EPSILON || specular.z() > EPSILON) {
 
                 // Reflection
@@ -606,7 +637,8 @@ Eigen::Vector3f Flyscene::traceRay(const Eigen::Vector3f &origin, const Eigen::V
                 const Eigen::Vector3f weightedReflectionShading = reflectionShading.cwiseProduct(specular).cwiseProduct(lightIntensity);
 
                 // Refraction
-                refraction.normalize();
+                // Edit: no time to properly finish
+//                refraction.normalize();
 //                const Eigen::Vector3f refractionShading = traceRay(hitPoint, refraction, recursionDepth + 1);
 //                const Eigen::Vector3f weightedRefractionShading = refractionShading.cwiseProduct(1 - specular).cwiseProduct(lightIntensity);
 
@@ -652,36 +684,42 @@ bool Flyscene::sphereIntersection(float &currentMaxDepth, const Eigen::Vector3f 
 
     bool hasIntersected = false;
 
-    // TODO finish, note that the currentMaxDepth should be the same measurement as in intersectTriangle
-    // https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-sphere-intersection :)
+    for (auto &sphere : spheres) {
+        const Eigen::Vector3f origCenter = sphere.center - origin;
+        const float origSphereProjOnRay = origCenter.dot(direction);
 
-//    for (auto &sphere : spheres) {
-//        const Eigen::Vector3f &originToSphere = sphere.center - origin;
-//        const float distOriginSphere = originToSphere.norm();
-//
-//        float a = direction.norm();
-//        float b = 2.0f * originToSphere.dot(direction);
-//        float c = distOriginSphere - sphere.radius * sphere.radius;
-//
-//        float D = b * b - 4 * a * c;
-//
-//        if (D < 1 || distOriginSphere >= currentMaxDepth) continue;
-//
-//        hasIntersected = true;
-//        currentMaxDepth = distOriginSphere;
-//
-//        const auto DSquare = sqrt(D);
-//        const auto aSummed = a + a;
-//
-//        const auto solution1 = (-b + DSquare) / aSummed;
-//        const auto solution2 = (-b - DSquare) / aSummed;
-//
-//        reflection = direction - 2 * direction.dot(normal) * normal;
-//        refraction = Eigen::Vector3f(0, 0, 0); // TODO
-//
-//        hitpoint = hitPoint;
-//        faceId = -1;
-//    }
+        const float centerToRay2 = origCenter.squaredNorm() - pow(origSphereProjOnRay, 2);
+        const float radius2 = pow(sphere.radius, 2);
+        if (centerToRay2 > radius2) continue;
+
+        const float inToProjection = sqrt(radius2 - centerToRay2);
+        float inTHit = origSphereProjOnRay - inToProjection;
+        float outTHit = origSphereProjOnRay + inToProjection;
+
+        if (inTHit > outTHit) std::swap(inTHit, outTHit);
+
+        if (inTHit < 0 && outTHit < 0) {
+            continue;
+        } else if (inTHit < 0) {
+            inTHit = outTHit;
+        }
+
+        if (inTHit < 0.00001f || inTHit > currentMaxDepth) continue;
+
+        const Eigen::Vector3f hitPoint = origin + (inTHit * direction);
+
+        hasIntersected = true;
+        currentMaxDepth = inTHit;
+
+        const Eigen::Vector3f normal = (hitPoint - sphere.center).normalized();
+
+        reflection = direction - 2 * direction.dot(normal) * normal;
+        refraction = Eigen::Vector3f(0, 0, 0); // No time to properly finish :(
+
+        //Hitpoints
+        hitpoint = hitPoint;
+        faceId = -1;
+    }
 
     return hasIntersected;
 }
@@ -745,7 +783,7 @@ bool Flyscene::triangleIntersection(float &currentMaxDepth, const Eigen::Vector3
             currentMaxDepth = tHit;
 
             reflection = direction - 2 * direction.dot(normal) * normal;
-            refraction = Eigen::Vector3f(0, 0, 0); // TODO
+            refraction = Eigen::Vector3f(0, 0, 0); // No time to properly finish :(
 
             hitpoint = hitPoint;
             faceId = i;

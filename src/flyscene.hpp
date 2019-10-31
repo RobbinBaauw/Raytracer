@@ -89,6 +89,8 @@ public:
      */
     void raytraceScene();
 
+    void loadLightsAndSpheres();
+
     /**
     * @Brief function that calculates basic shading of an intersected face
     */
@@ -162,6 +164,9 @@ private:
 
     // sheres for ray tracing
     vector<Sphere> spheres;
+
+    // sheres for ray tracing
+    vector<Tucano::Shapes::Sphere> visualSpheres;
 
     // Scene light represented as a camera
     Tucano::Camera scene_light;
