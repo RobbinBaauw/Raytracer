@@ -8,6 +8,21 @@ include_directories(${PROJECT_DIR})
 # Tucano directories.
 set(TUCANO_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/dependencies/tucano/")
 
+if (WIN32)
+    set(GLEW_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/dependencies/glew/include/")
+    set(GLEW_SHARED_LIBRARY_RELEASE "${PROJECT_SOURCE_DIR}/dependencies/glew/lib/win/x64/glew32.lib")
+
+    set(GLFW_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/dependencies/glfw/include")
+    set(GLFW_LIBRARIES "${PROJECT_SOURCE_DIR}/dependencies/glfw/lib/win/x64/glfw3.lib")
+
+    set(EIGEN3_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/dependencies/eigen/include/")
+endif (WIN32)
+
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+
+find_package(Threads REQUIRED)
+
 # find the necessary libraries (GLEW, OPENGL, EIGEN, GLFW)
 find_package(GLEW REQUIRED)
 if(NOT GLEW_FOUND)
@@ -37,6 +52,20 @@ endif()
 add_definitions(-D_USE_MATH_DEFINES)
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
+# Enable fast math 
+add_compile_options(-ffast-math)
+
+# Enable C++ 20 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON) 
+set(CMAKE_CXX_EXTENSIONS OFF) 
+
+include(CheckCXXCompilerFlag) 
+CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE) 
+if(COMPILER_SUPPORTS_MARCH_NATIVE) 
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+endif()
+
 # set the directory with your files as SHADING_SOURCES
 set(
         PROJECT_SOURCES
@@ -62,8 +91,9 @@ include_directories(
 
 # link the program with external libraries (glew, glfw, opengl)
 target_link_libraries(
-  ${PROJECT_NAME}
-  ${GLEW_LIBRARIES}
-  ${GLFW_LIBRARIES}
-  ${OPENGL_LIBRARIES}
-  )
+        ${PROJECT_NAME}
+        ${GLEW_LIBRARIES}
+        ${GLFW_LIBRARIES}
+        ${OPENGL_LIBRARIES}
+	Threads::Threads
+)

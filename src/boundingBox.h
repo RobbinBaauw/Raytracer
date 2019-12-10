@@ -191,15 +191,7 @@ public:
             ++leafCount;
         }
 
-        Eigen::Vector3f shape = getShape();
-        visualization = Tucano::Shapes::Box(shape[0], shape[1], shape[2]);
-        visualization.resetModelMatrix();
-        visualization.modelMatrix()->translate(((vmax + vmin) / 2));
-        auto r = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
-        auto g = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
-        auto b = (float) ((double) _CSTDLIB_::rand() / (RAND_MAX));
-        visualization.setColor(Eigen::Vector4f(r, g, b, 0.1));
-    }
+   }
 
     void computeDepth() {
         depth = computeDepth(0);
